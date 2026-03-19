@@ -495,7 +495,12 @@ function grahamSteps(pts){
 
   // sort by polar angle
   const others=idx.filter(i=>i!==anchor);
+  let stats={cross:0,comp:n-1,push:0,pop:0};
   others.sort((a,b)=>{
+    stats.comp++;
+    steps.push({type:'compare-sort',desc:`Sorting: Compare angles of P${a} and P${b} from anchor P${anchor}`,line:2,
+      highlights:[a,b],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],
+      arcCenter:anchor,arcFrom:a,arcTo:b,stats:{...stats}});
     const angA=polarAngle(pts[anchor],pts[a]),angB=polarAngle(pts[anchor],pts[b]);
     if(Math.abs(angA-angB)<1e-9)return dist2(pts[anchor],pts[a])-dist2(pts[anchor],pts[b]);
     return angA-angB;
@@ -503,11 +508,10 @@ function grahamSteps(pts){
   const sorted=[anchor,...others];
   steps.push({type:'sort',desc:`Sorted ${n-1} points by polar angle relative to anchor P${anchor}`,line:2,
     highlights:[],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],sortedOrder:[...sorted],
-    stats:{cross:0,comp:n-1+Math.ceil(n*Math.log2(n)),push:0,pop:0}});
-
-  // process
+    stats:{...stats}});
+  
   const stack=[sorted[0],sorted[1]];
-  let stats={cross:0,comp:steps[steps.length-1].stats.comp,push:2,pop:0};
+  stats.push += 2;
   steps.push({type:'init-stack',desc:`Initialize stack with P${sorted[0]} and P${sorted[1]}`,line:3,
     highlights:[],hullSet:new Set(stack),anchor,candidate:sorted[1],edges:[[sorted[0],sorted[1]]],stack:[...stack],
     stats:{...stats}});
@@ -574,6 +578,12 @@ function jarvisSteps(pts){
       if(i===current||i===next)continue;
       const cp=cross(pts[current],pts[next],pts[i]);
       stats.cross++;stats.comp++;
+      
+      steps.push({type:'search-cmp',desc:`Checking P${i} (cross=${cp.toFixed(1)}) vs candidate P${next}`,line:3,
+        highlights:[i],hullSet:new Set(hull),anchor:start,candidate:next,
+        edges:hull.length>1?hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]):[],stack:[...hull],stats:{...stats},
+        arcCenter:current,arcFrom:next,arcTo:i});
+        
       if(cp>0||(cp===0&&dist2(pts[current],pts[i])>dist2(pts[current],pts[next]))){
         steps.push({type:'better',desc:`P${i} is more counter-clockwise than P${next} from P${current} (cross=${cp.toFixed(1)}). New candidate: P${i}`,line:3,
           highlights:[next],hullSet:new Set(hull),anchor:start,candidate:i,
