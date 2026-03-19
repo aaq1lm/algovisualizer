@@ -553,7 +553,8 @@ function grahamSteps(pts){
     const resStr = cmp < 0 ? `P${a} before P${b}` : cmp > 0 ? `P${b} before P${a}` : `Tie`;
     steps.push({type:'compare-sort',desc:`Sorting: Comparing polar angles of P${a} vs P${b} from anchor P${anchor}. A smaller angle means the point is further "right" in our counter-clockwise sweep.`,line:2,
       highlights:[a,b],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],
-      arcCenter:anchor,arcFrom:a,arcTo:b,stats:{...stats}, result: resStr});
+      arcCenter:anchor,arcFrom:a,arcTo:b,stats:{...stats}, result: resStr,
+      arcLabels:['anchor', 'cmp 1', 'cmp 2'], sweepText: cmp < 0 ? 'smaller ∠' : 'larger ∠'});
     
     return cmp;
   });
@@ -573,7 +574,8 @@ function grahamSteps(pts){
     steps.push({type:'consider',desc:`Next up: P${pi}. We will temporarily attach this point to our hull, and test if the new angle formed makes a valid "Left Turn" (convex).`,line:4,
       highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
       edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-      arcCenter:stack[stack.length-1],arcFrom:stack[stack.length-2],arcTo:pi, result: 'Analyzing'});
+      arcCenter:stack[stack.length-1],arcFrom:stack[stack.length-2],arcTo:pi, result: 'Analyzing',
+      arcLabels:['next', 'on_hull', 'point'], sweepText:'? ∠ Turn'});
 
     while(stack.length>1){
       const top=stack[stack.length-1],sec=stack[stack.length-2];
@@ -642,7 +644,8 @@ function jarvisSteps(pts){
         steps.push({type:'better',desc:`Cross Product = ${cp.toFixed(1)} > 0. Yes! P${i} is "more exterior" than P${next}. We update our candidate endpoint to P${i} and keep sweeping.`,line:3,
           highlights:[next],hullSet:new Set(hull),anchor:start,candidate:i,
           edges:hull.length>1?hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]):[],stack:[...hull],stats:{...stats},
-          arcCenter:current,arcFrom:next,arcTo:i, result: 'Updated Candidate'});
+          arcCenter:current,arcFrom:next,arcTo:i, result: 'Updated Candidate',
+          arcLabels:['on_hull', 'candidate', 'point'], sweepText: 'Best Ray'});
         next=i;
       }
     }
