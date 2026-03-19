@@ -498,12 +498,17 @@ function grahamSteps(pts){
   let stats={cross:0,comp:n-1,push:0,pop:0};
   others.sort((a,b)=>{
     stats.comp++;
+    const angA=polarAngle(pts[anchor],pts[a]),angB=polarAngle(pts[anchor],pts[b]);
+    let cmp = 0;
+    if(Math.abs(angA-angB)<1e-9) cmp = dist2(pts[anchor],pts[a])-dist2(pts[anchor],pts[b]);
+    else cmp = angA-angB;
+    
+    const resStr = cmp < 0 ? `P${a} < P${b}` : cmp > 0 ? `P${b} < P${a}` : `Equal`;
     steps.push({type:'compare-sort',desc:`Sorting: Compare angles of P${a} and P${b} from anchor P${anchor}`,line:2,
       highlights:[a,b],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],
-      arcCenter:anchor,arcFrom:a,arcTo:b,stats:{...stats}});
-    const angA=polarAngle(pts[anchor],pts[a]),angB=polarAngle(pts[anchor],pts[b]);
-    if(Math.abs(angA-angB)<1e-9)return dist2(pts[anchor],pts[a])-dist2(pts[anchor],pts[b]);
-    return angA-angB;
+      arcCenter:anchor,arcFrom:a,arcTo:b,stats:{...stats}, result: resStr});
+    
+    return cmp;
   });
   const sorted=[anchor,...others];
   steps.push({type:'sort',desc:`Sorted ${n-1} points by polar angle relative to anchor P${anchor}`,line:2,
@@ -579,12 +584,13 @@ function jarvisSteps(pts){
       const cp=cross(pts[current],pts[next],pts[i]);
       stats.cross++;stats.comp++;
       
+      const isBetter = cp>0||(cp===0&&dist2(pts[current],pts[i])>dist2(pts[current],pts[next]));
       steps.push({type:'search-cmp',desc:`Checking P${i} (cross=${cp.toFixed(1)}) vs candidate P${next}`,line:3,
         highlights:[i],hullSet:new Set(hull),anchor:start,candidate:next,
         edges:hull.length>1?hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]):[],stack:[...hull],stats:{...stats},
-        arcCenter:current,arcFrom:next,arcTo:i});
+        arcCenter:current,arcFrom:next,arcTo:i, result: isBetter ? '✅ New Best' : '❌ Rejected' });
         
-      if(cp>0||(cp===0&&dist2(pts[current],pts[i])>dist2(pts[current],pts[next]))){
+      if(isBetter){
         steps.push({type:'better',desc:`P${i} is more counter-clockwise than P${next} from P${current} (cross=${cp.toFixed(1)}). New candidate: P${i}`,line:3,
           highlights:[next],hullSet:new Set(hull),anchor:start,candidate:i,
           edges:hull.length>1?hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]):[],stack:[...hull],stats:{...stats},
@@ -681,7 +687,8 @@ function addHistory(step,idx){
   const tr=document.createElement('tr');
   tr.className=step.type==='pop'?'h-pop':step.type==='push'||step.type==='hull-add'?'h-push':
     step.type==='sort'?'h-sort':step.type==='done'?'h-hull':'';
-  tr.innerHTML=`<td>${idx}</td><td>${step.type}</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${step.desc.substring(0,60)}</td><td>${step.type==='pop'?'❌ Removed':step.type==='push'||step.type==='hull-add'?'✅ Added':step.type==='done'?'🏁 Done':'—'}</td>`;
+  const resLabel = step.result || (step.type==='pop'?'❌ Removed':step.type==='push'||step.type==='hull-add'?'✅ Added':step.type==='done'?'🏁 Done':'—');
+  tr.innerHTML=`<td>${idx}</td><td>${step.type}</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${step.desc.substring(0,60)}</td><td>${resLabel}</td>`;
   tr.style.cursor='pointer';
   tr.addEventListener('click',()=>goToStep(idx));
   tbody.appendChild(tr);
@@ -739,7 +746,8 @@ function goToStep(idx){
     const tr=document.createElement('tr');
     tr.className=st.type==='pop'?'h-pop':st.type==='push'||st.type==='hull-add'?'h-push':
       st.type==='sort'?'h-sort':st.type==='done'?'h-hull':'';
-    tr.innerHTML=`<td>${i+1}</td><td>${st.type}</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${st.desc.substring(0,60)}</td><td>${st.type==='pop'?'❌':st.type==='push'||st.type==='hull-add'?'✅':st.type==='done'?'🏁':'—'}</td>`;
+    const resLabel = st.result || (st.type==='pop'?'❌':st.type==='push'||st.type==='hull-add'?'✅':st.type==='done'?'🏁':'—');
+    tr.innerHTML=`<td>${i+1}</td><td>${st.type}</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${st.desc.substring(0,60)}</td><td>${resLabel}</td>`;
     tr.style.cursor='pointer';
     tr.addEventListener('click',()=>goToStep(i+1));
     $('historyBody').appendChild(tr);
