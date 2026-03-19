@@ -497,9 +497,33 @@ function renderArc(pts,centerIdx,fromIdx,toIdx){
   
   const path=svgEl('path',{
     d:`M${sx},${sy} A${R},${R} 0 0,${sweep} ${ex},${ey}`,
-    fill:'none',stroke:'var(--orange)','stroke-width':1.5,'stroke-dasharray':'4,3',opacity:'.9',filter:'url(#glow)'
+    fill:'none',stroke:'var(--cyan)','stroke-width':2,opacity:'.9',filter:'url(#glow)'
   });
   g.appendChild(path);
+  
+  if(sweepText) {
+    const a1 = Math.atan2(-v1y, v1x), a2 = Math.atan2(-v2y, v2x);
+    let diff = a2 - a1;
+    while(diff <= -Math.PI) diff += 2*Math.PI;
+    while(diff > Math.PI) diff -= 2*Math.PI;
+    const midA = a1 + diff/2;
+    const mx = cx + 45 * Math.cos(midA);
+    const my = cy - 45 * Math.sin(midA);
+    const txt = svgEl('text', {x:mx, y:my, fill:'var(--cyan)', 'font-size':'11', 'font-weight':'600', 'text-anchor':'middle', 'alignment-baseline':'middle', 'font-family':'var(--sans)'});
+    txt.textContent = sweepText;
+    g.appendChild(txt);
+  }
+  
+  if(labels) {
+    const mkText = (x, y, str) => {
+      const t = svgEl('text', {x:x, y:y+22, fill:'#aaccff', 'font-size':'11', 'font-weight':'500', 'text-anchor':'middle', 'font-family':'var(--sans)'});
+      t.textContent = str;
+      g.appendChild(t);
+    };
+    if(labels[0]) mkText(cx, cy, labels[0]);
+    if(labels[1]) mkText(fx, fy, labels[1]);
+    if(labels[2]) mkText(tx2, ty2, labels[2]);
+  }
 }
 
 // ===== GRAHAM SCAN STEP GENERATOR =====
@@ -514,7 +538,7 @@ function grahamSteps(pts){
   }
   steps.push({type:'anchor',desc:`Start by finding the lowest point: P${anchor}(${pts[anchor]}). Because it is the furthest down, it is mathematically guaranteed to be a corner on the outer Convex Hull boundary.`,line:1,
     highlights:[],hullSet:new Set(),anchor,candidate:null,edges:[],stack:[anchor],
-    stats:{cross:0,comp:n-1,push:0,pop:0},arcCenter:null,arcFrom:null,arcTo:null, result: '📍 Anchor Set'});
+    stats:{cross:0,comp:n-1,push:0,pop:0},arcCenter:null,arcFrom:null,arcTo:null, result: 'Anchor Set'});
 
   // sort by polar angle
   const others=idx.filter(i=>i!==anchor);
@@ -526,7 +550,7 @@ function grahamSteps(pts){
     if(Math.abs(angA-angB)<1e-9) cmp = dist2(pts[anchor],pts[a])-dist2(pts[anchor],pts[b]);
     else cmp = angA-angB;
     
-    const resStr = cmp < 0 ? `→ P${a} before P${b}` : cmp > 0 ? `→ P${b} before P${a}` : `→ Tie`;
+    const resStr = cmp < 0 ? `P${a} before P${b}` : cmp > 0 ? `P${b} before P${a}` : `Tie`;
     steps.push({type:'compare-sort',desc:`Sorting: Comparing polar angles of P${a} vs P${b} from anchor P${anchor}. A smaller angle means the point is further "right" in our counter-clockwise sweep.`,line:2,
       highlights:[a,b],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],
       arcCenter:anchor,arcFrom:a,arcTo:b,stats:{...stats}, result: resStr});
@@ -536,20 +560,20 @@ function grahamSteps(pts){
   const sorted=[anchor,...others];
   steps.push({type:'sort',desc:`Finished sorting! The ${n-1} remaining points are now ordered by their polar angle (counter-clockwise sweep) relative to anchor P${anchor}.`,line:2,
     highlights:[],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],sortedOrder:[...sorted],
-    stats:{...stats}, result: '🔢 Array Ordered'});
+    stats:{...stats}, result: 'Array Ordered'});
   
   const stack=[sorted[0],sorted[1]];
   stats.push += 2;
   steps.push({type:'init-stack',desc:`Initialize our "Hull Stack" with anchor P${sorted[0]} and the first sorted point P${sorted[1]}. Two points inherently form a valid straight convex edge!`,line:3,
     highlights:[],hullSet:new Set(stack),anchor,candidate:sorted[1],edges:[[sorted[0],sorted[1]]],stack:[...stack],
-    stats:{...stats}, result: '📚 Stack Ready'});
+    stats:{...stats}, result: 'Stack Ready'});
 
   for(let i=2;i<sorted.length;i++){
     const pi=sorted[i];
     steps.push({type:'consider',desc:`Next up: P${pi}. We will temporarily attach this point to our hull, and test if the new angle formed makes a valid "Left Turn" (convex).`,line:4,
       highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
       edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-      arcCenter:stack[stack.length-1],arcFrom:stack[stack.length-2],arcTo:pi, result: '🔎 Analyzing'});
+      arcCenter:stack[stack.length-1],arcFrom:stack[stack.length-2],arcTo:pi, result: 'Analyzing'});
 
     while(stack.length>1){
       const top=stack[stack.length-1],sec=stack[stack.length-2];
@@ -561,24 +585,24 @@ function grahamSteps(pts){
         steps.push({type:'pop',desc:`Calculated Cross Product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)}. Since it is ≤ 0, this forms a RIGHT TURN (concave curve). We must BACKTRACK and remove P${top} from the hull!`,line:6,
           highlights:[top],hullSet:new Set(stack),anchor,candidate:pi,
           edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-          arcCenter:top,arcFrom:sec,arcTo:pi, result: '⏪ Removed (Concave)'});
+          arcCenter:top,arcFrom:sec,arcTo:pi, result: 'Removed (Concave)', arcLabels:['next','on_hull','point'], sweepText:'clock wise'});
       } else {
         steps.push({type:'keep',desc:`Calculated Cross Product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)}. Since it is > 0, this forms a LEFT TURN (valid convex curve). P${top} is safely kept as a corner on our boundary.`,line:5,
           highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
           edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-          arcCenter:top,arcFrom:sec,arcTo:pi, result: '✅ Kept (Convex)'});
+          arcCenter:top,arcFrom:sec,arcTo:pi, result: 'Kept (Convex)', arcLabels:['next','on_hull','point'], sweepText:'counter-cw'});
         break;
       }
     }
     stack.push(pi);stats.push++;
     steps.push({type:'push',desc:`Push P${pi} onto the stack. It is currently a valid part of the our convex boundary (until later points potentially prove otherwise).`,line:7,
       highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
-      edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats}, result: '➕ Pushed'});
+      edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats}, result: 'Pushed'});
   }
   // close hull
   const finalEdges=stack.map((s,j)=>[s,stack[(j+1)%stack.length]]);
   steps.push({type:'done',desc:`Convex hull complete! Final stack array holds our ${stack.length} outer boundary points.`,line:8,
-    highlights:[],hullSet:new Set(stack),anchor,candidate:null,edges:finalEdges,stack:[...stack],stats:{...stats}, result: '🏁 Done'});
+    highlights:[],hullSet:new Set(stack),anchor,candidate:null,edges:finalEdges,stack:[...stack],stats:{...stats}, result: 'Done'});
   return steps;
 }
 
@@ -590,7 +614,7 @@ function jarvisSteps(pts){
   for(let i=1;i<n;i++){if(pts[i][0]<pts[start][0]||(pts[i][0]===pts[start][0]&&pts[i][1]<pts[start][1]))start=i}
   steps.push({type:'start',desc:`Start by finding the leftmost point: P${start}(${pts[start]}). Because it is the extreme left edge, it is mathematically guaranteed to be on the Convex Hull boundary.`,line:1,
     highlights:[],hullSet:new Set([start]),anchor:start,candidate:null,edges:[],stack:[start],
-    stats:{cross:0,comp:n-1,push:0,pop:0}, result: '📍 Start Point'});
+    stats:{cross:0,comp:n-1,push:0,pop:0}, result: 'Start Point'});
 
   const hull=[start];let current=start;
   let stats={cross:0,comp:n-1,push:1,pop:0};
@@ -600,7 +624,7 @@ function jarvisSteps(pts){
     steps.push({type:'search-start',desc:`From current point P${current}, we throw an initial "candidate rope" to P${next}. We will now sweep across all other points to see if anyone is "more exterior" than P${next}.`,line:2,
       highlights:[],hullSet:new Set(hull),anchor:start,candidate:next,
       edges:hull.length>1?hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]):[],stack:[...hull],stats:{...stats},
-      arcCenter:current,arcFrom:null,arcTo:next, result: '🪢 New Ray'});
+      arcCenter:current,arcFrom:null,arcTo:next, result: 'New Ray'});
 
     for(let i=0;i<n;i++){
       if(i===current||i===next)continue;
@@ -608,23 +632,24 @@ function jarvisSteps(pts){
       stats.cross++;stats.comp++;
       
       const isBetter = cp>0||(cp===0&&dist2(pts[current],pts[i])>dist2(pts[current],pts[next]));
-      steps.push({type:'search-cmp',desc:`Checking P${i} (cross=${cp.toFixed(1)}) vs candidate P${next}`,line:3,
+      steps.push({type:'search-cmp',desc:`Sweeping check to P${i}: testing if P${i} lies structurally further outside (counter-clockwise) than our candidate P${next} using the Cross Product.`,line:3,
         highlights:[i],hullSet:new Set(hull),anchor:start,candidate:next,
         edges:hull.length>1?hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]):[],stack:[...hull],stats:{...stats},
-        arcCenter:current,arcFrom:next,arcTo:i, result: isBetter ? '✅ New Best' : '❌ Rejected' });
+        arcCenter:current,arcFrom:next,arcTo:i, result: isBetter ? 'New Best' : 'Interior Check',
+        arcLabels:['on_hull', 'candidate', 'point'], sweepText: isBetter ? 'counter-cw' : 'clock wise' });
         
       if(isBetter){
-        steps.push({type:'better',desc:`P${i} is more counter-clockwise than P${next} from P${current} (cross=${cp.toFixed(1)}). New candidate: P${i}`,line:3,
+        steps.push({type:'better',desc:`Cross Product = ${cp.toFixed(1)} > 0. Yes! P${i} is "more exterior" than P${next}. We update our candidate endpoint to P${i} and keep sweeping.`,line:3,
           highlights:[next],hullSet:new Set(hull),anchor:start,candidate:i,
           edges:hull.length>1?hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]):[],stack:[...hull],stats:{...stats},
-          arcCenter:current,arcFrom:next,arcTo:i});
+          arcCenter:current,arcFrom:next,arcTo:i, result: 'Updated Candidate'});
         next=i;
       }
     }
     hull.push(next);stats.push++;
     const currentEdges=hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]);
-    steps.push({type:'hull-add',desc:`P${next} confirmed as next hull vertex. Edge P${current}→P${next} added.`,line:4,
-      highlights:[],hullSet:new Set(hull),anchor:start,candidate:next,edges:currentEdges,stack:[...hull],stats:{...stats}});
+    steps.push({type:'hull-add',desc:`Finished sweeping! P${next} was the absolute most exterior point found. It is permanently gift-wrapped into our boundary line.`,line:4,
+      highlights:[],hullSet:new Set(hull),anchor:start,candidate:next,edges:currentEdges,stack:[...hull],stats:{...stats}, result: 'Edge Locked'});
     current=next;iter++;
     if(iter>n+2)break;// safety
   }while(current!==start);
@@ -633,8 +658,8 @@ function jarvisSteps(pts){
   // close it
   if(hull[hull.length-1]===hull[0])hull.pop();
   const closeEdges=hull.map((h,j)=>[h,hull[(j+1)%hull.length]]);
-  steps.push({type:'done',desc:`Jarvis March complete! ${hull.length} hull vertices found.`,line:5,
-    highlights:[],hullSet:new Set(hull),anchor:start,candidate:null,edges:closeEdges,stack:[...hull],stats:{...stats}});
+  steps.push({type:'done',desc:`Jarvis March complete! We successfully "gift-wrapped" the entire exterior, finding ${hull.length} boundary points.`,line:5,
+    highlights:[],hullSet:new Set(hull),anchor:start,candidate:null,edges:closeEdges,stack:[...hull],stats:{...stats}, result: 'Done'});
   return steps;
 }
 
@@ -750,7 +775,7 @@ function applyStep(idx){
   const st=S.steps[idx];
   renderPoints(S.points,st.highlights,st.hullSet,st.anchor,st.candidate);
   renderEdges(S.points,st.edges,st.type!=='done');
-  if(st.arcCenter!=null)renderArc(S.points,st.arcCenter,st.arcFrom,st.arcTo);
+  if(st.arcCenter!=null)renderArc(S.points,st.arcCenter,st.arcFrom,st.arcTo,st.arcLabels,st.sweepText);
   else $('arcsG').innerHTML='';
   renderStats(st.stats);
   renderStack(st.stack,S.points);
