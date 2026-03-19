@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Convex Hull — Graham Scan &amp; Jarvis March</title>
+<style>
+:root{
+  --bg:#111111;--panel:#1a1a1a;--card:#161616;--border:#2a2a2a;
+  --text:#e8e4dc;--muted:#7a7a72;--accent:#e8e4dc;
+  --green:#4ec98b;--red:#e05a5a;--orange:#d4a843;--purple:#a07ed4;--cyan:#5ab8c9;
+  --hull-glow:rgba(232,228,220,.12);
+  --mono:'Courier New',Courier,monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --serif:Georgia,'Times New Roman',Times,serif
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;overflow-x:hidden}
+button{cursor:pointer;font-family:inherit;border:none;outline:none;background:none}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border)}
+
+/* HEADER */
+.header{text-align:left;padding:40px 48px 28px;border-bottom:1px solid var(--border);position:relative}
+.header::before{content:'△';position:absolute;top:20px;right:48px;font-size:3rem;color:var(--border);font-family:var(--serif);line-height:1;pointer-events:none}
+.header h1{font-family:var(--serif);font-size:3.2rem;font-weight:400;color:var(--text);letter-spacing:-1px;line-height:1.1}
+.header .sub{font-size:.82rem;color:var(--muted);margin-top:6px;letter-spacing:2px;text-transform:uppercase;font-weight:500}
+
+/* LAYOUT */
+.app{display:flex;gap:1px;padding:0;max-width:100%;margin:0;background:var(--border)}
+.left{width:400px;min-width:340px;flex-shrink:0;display:flex;flex-direction:column;gap:1px;background:var(--border)}
+.right{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;background:var(--border)}
+
+/* CARDS */
+.card{background:var(--card);border:none;border-radius:0;padding:20px 24px;position:relative;overflow:hidden}
+.card::before{display:none}
+.card h3{font-family:var(--serif);font-size:.78rem;text-transform:uppercase;letter-spacing:3px;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:8px;font-weight:400;border-bottom:1px solid var(--border);padding-bottom:8px}
+
+/* CONTROLS */
+.algo-sel{display:flex;gap:0;margin-bottom:12px;border:1px solid var(--accent)}
+.algo-sel label{flex:1;text-align:center;padding:8px 4px;border-radius:0;background:var(--card);border:none;border-right:1px solid var(--accent);font-size:.72rem;cursor:pointer;transition:all .15s;letter-spacing:1px;text-transform:uppercase;font-weight:500}
+.algo-sel label:last-child{border-right:none}
+.algo-sel input{display:none}
+.algo-sel input:checked+span{color:var(--bg)}
+.algo-sel label:has(input:checked){background:var(--accent);color:var(--bg);box-shadow:none}
+.algo-sel label:has(input:checked) span{color:var(--bg)}
+
+textarea{width:100%;background:var(--card);border:1px solid var(--border);border-radius:0;color:var(--text);padding:10px 12px;font-family:var(--mono);font-size:.78rem;resize:vertical;min-height:54px;transition:border-color .2s}
+textarea:focus{border-color:var(--accent)}
+.preset-row{display:flex;gap:0;flex-wrap:wrap;margin:10px 0}
+.preset-btn{padding:6px 14px;border-radius:0;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:.68rem;transition:all .15s;letter-spacing:1px;text-transform:uppercase;font-weight:500;margin-right:-1px;margin-bottom:-1px}
+.preset-btn:hover{background:var(--accent);color:var(--bg);border-color:var(--accent);transform:none;box-shadow:none}
+
+.speed-row{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:.75rem;letter-spacing:.5px}
+.speed-row input[type=range]{flex:1;accent-color:var(--accent);height:2px}
+.speed-val{color:var(--accent);font-weight:600;min-width:36px;text-align:right;font-family:var(--mono)}
+
+.playback{display:flex;gap:0;margin:12px 0;border:1px solid var(--accent)}
+.playback button{flex:1;padding:9px 4px;border-radius:0;font-size:.68rem;font-weight:600;transition:all .15s;letter-spacing:1px;text-transform:uppercase;border-right:1px solid var(--accent)}
+.playback button:last-child{border-right:none}
+.pb-build{background:var(--accent);color:var(--bg)}.pb-build:hover{opacity:.85;box-shadow:none}
+.pb-step{background:var(--card);color:var(--accent);border:none}.pb-step:hover{background:var(--panel)}
+.pb-play{background:var(--green);color:#fff}.pb-play:hover{opacity:.85;box-shadow:none}
+.pb-pause{background:var(--orange);color:#fff}.pb-pause:hover{opacity:.85;box-shadow:none}
+.pb-reset{background:var(--card);color:var(--red);border:none}.pb-reset:hover{background:var(--panel)}
+
+.step-status{display:flex;justify-content:space-between;align-items:center;font-size:.75rem;margin-top:8px}
+.status-pill{padding:3px 12px;border-radius:0;font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;border:1px solid}
+.status-idle{background:transparent;color:var(--muted);border-color:var(--border)}
+.status-ready{background:transparent;color:var(--accent);border-color:var(--accent)}
+.status-playing{background:var(--green);color:var(--bg);border-color:var(--green)}
+.status-paused{background:transparent;color:var(--orange);border-color:var(--orange)}
+.status-done{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.stat-box{background:var(--card);border-radius:0;padding:12px 10px;text-align:center}
+.stat-box .val{font-size:1.8rem;font-weight:300;color:var(--accent);font-family:var(--serif);transition:transform .2s;letter-spacing:-1px}
+.stat-box .lbl{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-top:4px;font-weight:500}
+
+/* PSEUDOCODE */
+.pseudo-wrap{max-height:220px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:0;padding:10px 0;font-family:var(--mono);font-size:.72rem;line-height:1.8}
+.pseudo-line{padding:2px 14px;white-space:pre;transition:background .15s,color .15s;cursor:default}
+.pseudo-line:hover{background:rgba(0,0,0,.03)}
+.pseudo-line.active{background:var(--accent);color:var(--bg);border-left:3px solid var(--accent)}
+.pseudo-line .ln{color:var(--muted);margin-right:10px;user-select:none;display:inline-block;width:18px;text-align:right;font-size:.65rem}
+
+/* EXPLANATION */
+.explain-box{background:var(--card);border:1px solid var(--border);border-radius:0;padding:12px 16px;font-size:.8rem;min-height:42px;border-left:3px solid var(--accent);line-height:1.6}
+
+/* SVG VIZ */
+.viz-wrap{position:relative;background:#0f0f1a;border:none;border-radius:0;overflow:hidden}
+.viz-wrap::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--accent);opacity:.3;z-index:2}
+.viz-svg{width:100%;display:block}
+
+/* LEGEND */
+.legend{display:flex;flex-wrap:wrap;gap:14px;padding:10px 16px;font-size:.68rem;background:var(--card);letter-spacing:.5px;text-transform:uppercase}
+.legend-item{display:flex;align-items:center;gap:6px;font-weight:500}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* HISTORY */
+.history-wrap{max-height:200px;overflow-y:auto}
+.history-wrap table{width:100%;border-collapse:collapse;font-size:.72rem}
+.history-wrap th{position:sticky;top:0;background:var(--card);color:var(--muted);text-align:left;padding:6px 10px;font-weight:500;border-bottom:1px solid var(--accent);letter-spacing:1px;text-transform:uppercase;font-size:.62rem}
+.history-wrap td{padding:5px 10px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.history-wrap tr:hover td{background:rgba(0,0,0,.03)}
+.history-wrap tr.h-push td{border-left:2px solid var(--green)}
+.history-wrap tr.h-pop td{border-left:2px solid var(--red)}
+.history-wrap tr.h-hull td{border-left:2px solid var(--accent)}
+.history-wrap tr.h-sort td{border-left:2px solid var(--orange)}
+
+/* EDUCATIONAL */
+.edu-section{border:none;border-top:1px solid var(--border);border-radius:0;overflow:hidden;margin-top:0}
+.edu-toggle{width:100%;padding:16px 24px;background:var(--card);color:var(--text);font-family:var(--serif);font-size:.95rem;font-weight:400;text-align:left;display:flex;justify-content:space-between;align-items:center;transition:background .15s;letter-spacing:-.2px}
+.edu-toggle:hover{background:var(--panel)}
+.edu-toggle .arrow{transition:transform .3s;color:var(--muted);font-size:.7rem}
+.edu-toggle.open .arrow{transform:rotate(180deg)}
+.edu-body{max-height:0;overflow:hidden;transition:max-height .4s ease;background:var(--card)}
+.edu-body.open{max-height:3000px}
+.edu-inner{padding:20px 24px;font-size:.82rem;line-height:1.8}
+.edu-inner h4{color:var(--accent);margin:16px 0 6px;font-size:.92rem;font-family:var(--serif);font-weight:400;letter-spacing:-.2px}
+.edu-inner p{margin-bottom:10px;color:var(--muted)}
+.edu-inner code{background:var(--panel);padding:2px 6px;border-radius:0;font-family:var(--mono);font-size:.74rem;color:var(--green);border:1px solid var(--border)}
+.concept-box{background:var(--card);border:1px solid var(--border);border-radius:0;padding:14px 16px;margin:12px 0;border-left:3px solid var(--accent)}
+.concept-box.warn{border-left-color:var(--orange)}
+.concept-box h5{color:var(--accent);font-size:.78rem;margin-bottom:4px;font-family:var(--serif);font-weight:400;letter-spacing:.5px}
+.concept-box.warn h5{color:var(--orange)}
+
+/* COMPLEXITY CHART */
+.clo-chart{width:100%;height:160px;margin:12px 0}
+
+/* STACK VIZ */
+.stack-viz{display:flex;flex-direction:column-reverse;gap:2px;min-height:40px;padding:8px;background:var(--card);border:1px solid var(--border);border-radius:0;margin-top:8px}
+.stack-item{padding:5px 12px;background:var(--panel);border:1px solid var(--border);border-radius:0;font-size:.72rem;font-family:var(--mono);color:var(--accent);animation:stackIn .2s ease;letter-spacing:.5px}
+@keyframes stackIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+
+/* RESPONSIVE */
+@media(max-width:980px){.app{flex-direction:column}.left{width:100%;min-width:0}}
+
+/* GLOW ANIMATIONS — keep for SVG (dark canvas) */
+@keyframes pulse-glow{0%,100%{filter:drop-shadow(0 0 4px #4cc9f0)}50%{filter:drop-shadow(0 0 12px #4cc9f0)}}
+@keyframes sweep{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
+.hull-edge{stroke-dasharray:1000;stroke-dashoffset:1000;animation:sweep 1s ease forwards}
+.point-enter{animation:pointPop .35s cubic-bezier(.34,1.56,.64,1)}
+@keyframes pointPop{from{r:0;opacity:0}to{r:6;opacity:1}}
+.point-pulse{animation:pulse-glow 1.2s ease infinite}
+
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="header">
+<h1>Convex Hull Visualizer</h1>
+<div class="sub">Graham Scan &amp; Jarvis March — Interactive Algorithm Explorer</div>
+</div>
+
+<div class="app">
+<!-- LEFT PANEL -->
+<div class="left">
+
+<div class="card" id="controlCard">
+<h3>&#9881; Controls</h3>
+<div class="algo-sel">
+<label><input type="radio" name="algo" value="graham" checked><span>Graham Scan</span></label>
+<label><input type="radio" name="algo" value="jarvis"><span>Jarvis March</span></label>
+<label><input type="radio" name="algo" value="both"><span>Compare Both</span></label>
+</div>
+<textarea id="pointInput" placeholder="Enter points as x,y pairs (one per line)&#10;Example:&#10;2,3&#10;5,1&#10;7,6&#10;4,8"></textarea>
+<div class="preset-row">
+<button class="preset-btn" onclick="loadPreset('triangle')">Triangle</button>
+<button class="preset-btn" onclick="loadPreset('circle')">Circle (12)</button>
+<button class="preset-btn" onclick="loadPreset('cluster')">Random Cluster</button>
+<button class="preset-btn" onclick="loadPreset('collinear')">Collinear Edge</button>
+<button class="preset-btn" onclick="loadPreset('star')">Star Shape</button>
+</div>
+<div class="speed-row">
+<span>Speed:</span>
+<input type="range" id="speedSlider" min="0.25" max="4" step="0.25" value="1">
+<span class="speed-val" id="speedVal">1x</span>
+</div>
+<div class="playback">
+<button class="pb-build" onclick="buildSteps()">Build Steps</button>
+<button class="pb-step" onclick="stepForward()">Step</button>
+<button class="pb-play" onclick="play()">Play</button>
+<button class="pb-pause" onclick="pause()">Pause</button>
+<button class="pb-reset" onclick="reset()">Reset</button>
+</div>
+<div class="step-status">
+<span id="stepCounter">Step 0 / 0</span>
+<span class="status-pill status-idle" id="statusPill">Idle</span>
+</div>
+</div>
+
+<div class="card" id="statsCard">
+<h3>&#128202; Statistics</h3>
+<div class="stats-grid">
+<div class="stat-box"><div class="val" id="statCross">0</div><div class="lbl">Cross Products</div></div>
+<div class="stat-box"><div class="val" id="statComp">0</div><div class="lbl">Comparisons</div></div>
+<div class="stat-box"><div class="val" id="statPush">0</div><div class="lbl">Stack Push</div></div>
+<div class="stat-box"><div class="val" id="statPop">0</div><div class="lbl">Stack Pop</div></div>
+</div>
+</div>
+
+<div class="card" id="pseudoCard">
+<h3>&#128196; Pseudocode</h3>
+<div class="pseudo-wrap" id="pseudoWrap"></div>
+</div>
+
+<div class="card">
+<h3>&#128161; Current Step</h3>
+<div class="explain-box" id="explainBox">Load a preset or enter points, then click <b>Build Steps</b>.</div>
+</div>
+
+<div class="card">
+<h3>&#9881; Stack State</h3>
+<div class="stack-viz" id="stackViz"><span style="color:var(--muted);font-size:.72rem">Empty</span></div>
+</div>
+
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="right">
+
+<div class="viz-wrap">
+<svg id="vizSvg" class="viz-svg" viewBox="0 0 700 500" xmlns="http://www.w3.org/2000/svg" onclick="handleSvgClick(event)" style="cursor:crosshair">
+<defs>
+<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glowStrong"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<marker id="arrowG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--green)"/></marker>
+</defs>
+<rect width="700" height="500" fill="var(--bg)" rx="0"/>
+<!-- Grid -->
+<g id="gridG" opacity=".12"></g>
+<!-- Edges layer -->
+<g id="edgesG"></g>
+<!-- Angle arcs -->
+<g id="arcsG"></g>
+<!-- Points layer -->
+<g id="pointsG"></g>
+<!-- Labels layer -->
+<g id="labelsG"></g>
+</svg>
+<div class="legend" id="legend">
+<div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Default Point</div>
+<div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Hull Point</div>
+<div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Rejected</div>
+<div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>Current / Candidate</div>
+<div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>Anchor / Start</div>
+</div>
+</div>
+
+<div class="card">
+<h3>&#128218; Step History</h3>
+<div class="history-wrap" id="historyWrap">
+<table><thead><tr><th>#</th><th>Action</th><th>Detail</th><th>Result</th></tr></thead><tbody id="historyBody"></tbody></table>
+</div>
+</div>
+
+<!-- EDUCATIONAL SECTIONS -->
+<div class="edu-section">
+<button class="edu-toggle" onclick="toggleEdu(this)"><span>Overview — What is a Convex Hull?</span><span class="arrow">&#9660;</span></button>
+<div class="edu-body"><div class="edu-inner" id="eduOverview"></div></div>
+</div>
+<div class="edu-section">
+<button class="edu-toggle" onclick="toggleEdu(this)"><span>Worked Example — Step by Step</span><span class="arrow">&#9660;</span></button>
+<div class="edu-body"><div class="edu-inner" id="eduWorked"></div></div>
+</div>
+<div class="edu-section">
+<button class="edu-toggle" onclick="toggleEdu(this)"><span>Key Concepts &amp; Common Mistakes</span><span class="arrow">&#9660;</span></button>
+<div class="edu-body"><div class="edu-inner" id="eduConcepts"></div></div>
+</div>
+<div class="edu-section">
+<button class="edu-toggle" onclick="toggleEdu(this)"><span>CLO Analysis — Complexity &amp; Paradigm Comparison</span><span class="arrow">&#9660;</span></button>
+<div class="edu-body"><div class="edu-inner" id="eduCLO"></div></div>
+</div>
+
+</div>
+</div>
+
+<script>
+// ===== STATE =====
+const S={points:[],steps:[],stepIdx:-1,playing:false,timer:null,algo:'graham',
+  stats:{cross:0,comp:0,push:0,pop:0}};
+const $=id=>document.getElementById(id);
+const svgNS='http://www.w3.org/2000/svg';
+const W=700,H=500,PAD=50;
+
+// ===== GEOMETRY =====
+function cross(O,A,B){return(A[0]-O[0])*(B[1]-O[1])-(A[1]-O[1])*(B[0]-O[0])}
+function dist2(A,B){return(A[0]-B[0])**2+(A[1]-B[1])**2}
+function polarAngle(O,P){return Math.atan2(P[1]-O[1],P[0]-O[0])}
+function orient(O,A,B){const v=cross(O,A,B);return v>0?1:v<0?-1:0}
+
+// ===== COORDINATE TRANSFORM =====
+let tScale=1,tOx=0,tOy=0;
+function calcTransform(pts){
+  if(!pts.length)return;
+  let mx=Infinity,my=Infinity,Mx=-Infinity,My=-Infinity;
+  for(const p of pts){mx=Math.min(mx,p[0]);my=Math.min(my,p[1]);Mx=Math.max(Mx,p[0]);My=Math.max(My,p[1])}
+  const dx=Mx-mx||1,dy=My-my||1;
+  tScale=Math.min((W-2*PAD)/dx,(H-2*PAD)/dy);
+  tOx=PAD+(W-2*PAD-dx*tScale)/2-mx*tScale;
+  tOy=PAD+(H-2*PAD-dy*tScale)/2-my*tScale;
+}
+function tx(x){return x*tScale+tOx}
+function ty(y){return H-(y*tScale+tOy)}
+
+// ===== DRAW GRID =====
+function drawGrid(){
+  const g=$('gridG');g.innerHTML='';
+  for(let x=PAD;x<=W-PAD;x+=40){const l=document.createElementNS(svgNS,'line');
+    l.setAttribute('x1',x);l.setAttribute('y1',PAD);l.setAttribute('x2',x);l.setAttribute('y2',H-PAD);
+    l.setAttribute('stroke','#ffffff');l.setAttribute('stroke-width','0.5');g.appendChild(l)}
+  for(let y=PAD;y<=H-PAD;y+=40){const l=document.createElementNS(svgNS,'line');
+    l.setAttribute('x1',PAD);l.setAttribute('y1',y);l.setAttribute('x2',W-PAD);l.setAttribute('y2',y);
+    l.setAttribute('stroke','#ffffff');l.setAttribute('stroke-width','0.5');g.appendChild(l)}
+}
+
+// ===== PRESETS =====
+function loadPreset(name){
+  const presets={
+    triangle:[[2,1],[5,8],[9,2]],
+    circle:Array.from({length:12},(_,i)=>{const a=i*Math.PI*2/12;return[Math.round((5+4*Math.cos(a))*10)/10,Math.round((5+4*Math.sin(a))*10)/10]}),
+    cluster:Array.from({length:15},()=>[Math.floor(Math.random()*9)+1,Math.floor(Math.random()*9)+1]),
+    collinear:[[1,1],[2,2],[3,3],[4,4],[5,5],[3,1],[1,5],[5,1],[3,6]],
+    star:[[5,9],[1,5],[3,1],[7,1],[9,5],[5,4],[3,7],[7,7],[3,3],[7,3]]
+  };
+  const pts=presets[name];if(!pts)return;
+  $('pointInput').value=pts.map(p=>p.join(',')).join('\n');
+  reset();parseAndRender();
+}
+
+// ===== PARSE INPUT =====
+function parsePoints(){
+  const raw=$('pointInput').value.trim();if(!raw)return[];
+  return raw.split(/[\n;]+/).map(l=>{
+    const m=l.trim().replace(/[()]/g,'').split(/[,\s]+/).map(Number);
+    return m.length>=2&&!isNaN(m[0])&&!isNaN(m[1])?[m[0],m[1]]:null;
+  }).filter(Boolean);
+}
+function parseAndRender(){
+  S.points=parsePoints();if(!S.points.length)return;
+  calcTransform(S.points);drawGrid();renderPoints(S.points,[]);
+}
+
+// ===== CLICK TO ADD POINTS =====
+function handleSvgClick(e){
+  if(S.playing) return;
+  const pt = e.currentTarget.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  const loc = pt.matrixTransform(e.currentTarget.getScreenCTM().inverse());
+  
+  const logicalX = Math.round(((loc.x - tOx) / tScale) * 10) / 10;
+  const logicalY = Math.round(((H - loc.y - tOy) / tScale) * 10) / 10;
+  
+  const raw = $('pointInput').value.trim();
+  const newLine = `${logicalX},${logicalY}`;
+  $('pointInput').value = raw ? raw + '\n' + newLine : newLine;
+  
+  reset();
+  parseAndRender();
+}
+
+// ===== CLICK TO ADD POINTS =====
+function handleSvgClick(e){
+  if(S.playing) return;
+  const pt = e.currentTarget.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  const loc = pt.matrixTransform(e.currentTarget.getScreenCTM().inverse());
+  
+  const logicalX = Math.round(((loc.x - tOx) / tScale) * 10) / 10;
+  const logicalY = Math.round(((H - loc.y - tOy) / tScale) * 10) / 10;
+  
+  const raw = $('pointInput').value.trim();
+  const newLine = `${logicalX},${logicalY}`;
+  $('pointInput').value = raw ? raw + '\n' + newLine : newLine;
+  
+  reset();
+  parseAndRender();
+}
+
+// ===== SVG ELEMENT HELPERS =====
+function svgEl(tag,attrs){
+  const el=document.createElementNS(svgNS,tag);
+  for(const[k,v]of Object.entries(attrs))el.setAttribute(k,v);return el;
+}
+
+// ===== SMOOTH ANIMATION HELPERS =====
+function animateAttr(el,attr,from,to,dur,ease){
+  const start=performance.now();
+  function tick(now){
+    let t=Math.min((now-start)/dur,1);
+    if(ease)t=ease(t);
+    el.setAttribute(attr,from+(to-from)*t);
+    if(t<1)requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+function easeOutCubic(t){return 1-Math.pow(1-t,3)}
+function easeInOutQuad(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
+
+// ===== RENDER POINTS =====
+function renderPoints(pts,highlights,hullSet,anchorIdx,candidateIdx){
+  const gP=$('pointsG'),gL=$('labelsG');gP.innerHTML='';gL.innerHTML='';
+  hullSet=hullSet||new Set();
+  pts.forEach((p,i)=>{
+    let color='var(--accent)';let r=6;let glow=false;
+    if(i===anchorIdx){color='var(--purple)';r=8;glow=true}
+    else if(i===candidateIdx){color='var(--orange)';r=7;glow=true}
+    else if(highlights&&highlights.includes(i)){color='var(--red)';r=6}
+    else if(hullSet.has(i)){color='var(--green)';r=7;glow=true}
+    const cx=tx(p[0]),cy=ty(p[1]);
+    // outer glow circle
+    if(glow){
+      const gl=svgEl('circle',{cx,cy,r:r+4,fill:'none',stroke:color,'stroke-width':1.5,opacity:.4,filter:'url(#glow)'});
+      gP.appendChild(gl);
+    }
+    const c=svgEl('circle',{cx,cy,r:0,fill:color,stroke:'#fff','stroke-width':1,opacity:0,style:'transition:r .3s cubic-bezier(.34,1.56,.64,1),opacity .25s'});
+    gP.appendChild(c);
+    // animate entrance
+    requestAnimationFrame(()=>{c.setAttribute('r',r);c.setAttribute('opacity','1')});
+    // label
+    const t=svgEl('text',{x:cx,y:cy-r-6,fill:'#fff','font-size':'10','text-anchor':'middle','font-family':'var(--mono)',opacity:'.7'});
+    t.textContent=`P${i}(${p[0]},${p[1]})`;gL.appendChild(t);
+  });
+}
+
+// ===== RENDER EDGES =====
+function renderEdges(pts,edgeList,partial){
+  const g=$('edgesG');g.innerHTML='';
+  edgeList.forEach((e,idx)=>{
+    const[i,j]=e;
+    const x1=tx(pts[i][0]),y1=ty(pts[i][1]),x2=tx(pts[j][0]),y2=ty(pts[j][1]);
+    const len=Math.sqrt((x2-x1)**2+(y2-y1)**2);
+    // glow under-line
+    const gl=svgEl('line',{x1,y1,x2,y2,stroke:'var(--accent)','stroke-width':4,opacity:'.15',filter:'url(#glowStrong)'});
+    g.appendChild(gl);
+    const l=svgEl('line',{x1,y1,x2,y2,stroke:partial&&idx===edgeList.length-1?'var(--orange)':'var(--green)',
+      'stroke-width':2,'stroke-dasharray':len,'stroke-dashoffset':len,opacity:'.9'});
+    g.appendChild(l);
+    // animate the edge drawing
+    animateAttr(l,'stroke-dashoffset',len,0,400*Math.min(1,1/getSpeed()),easeOutCubic);
+  });
+}
+
+// ===== RENDER ANGLE ARC =====
+function renderArc(pts,centerIdx,fromIdx,toIdx){
+  const g=$('arcsG');g.innerHTML='';
+  if(centerIdx==null||fromIdx==null||toIdx==null)return;
+  const c=pts[centerIdx],f=pts[fromIdx],t=pts[toIdx];
+  const a1=Math.atan2(-(ty(f[1])-ty(c[1])),tx(f[0])-tx(c[0]));
+  const a2=Math.atan2(-(ty(t[1])-ty(c[1])),tx(t[0])-tx(c[0]));
+  const cx=tx(c[0]),cy=ty(c[1]),R=30;
+  let start=a1,end=a2;
+  // draw small arc
+  const largeArc=Math.abs(end-start)>Math.PI?1:0;
+  const sx=cx+R*Math.cos(start),sy=cy-R*Math.sin(start);
+  const ex=cx+R*Math.cos(end),ey=cy-R*Math.sin(end);
+  const path=svgEl('path',{
+    d:`M${sx},${sy} A${R},${R} 0 ${largeArc},0 ${ex},${ey}`,
+    fill:'none',stroke:'var(--orange)','stroke-width':1.5,'stroke-dasharray':'4,3',opacity:'.7',filter:'url(#glow)'
+  });
+  g.appendChild(path);
+}
+
+// ===== GRAHAM SCAN STEP GENERATOR =====
+function grahamSteps(pts){
+  const steps=[];const n=pts.length;if(n<3)return steps;
+  // indices array
+  const idx=Array.from({length:n},(_,i)=>i);
+  // find lowest y, then leftmost
+  let anchor=0;
+  for(let i=1;i<n;i++){
+    if(pts[i][1]<pts[anchor][1]||(pts[i][1]===pts[anchor][1]&&pts[i][0]<pts[anchor][0]))anchor=i;
+  }
+  steps.push({type:'anchor',desc:`Found anchor: P${anchor}(${pts[anchor]}) — lowest y-coordinate`,line:1,
+    highlights:[],hullSet:new Set(),anchor,candidate:null,edges:[],stack:[anchor],
+    stats:{cross:0,comp:n-1,push:0,pop:0},arcCenter:null,arcFrom:null,arcTo:null});
+
+  // sort by polar angle
+  const others=idx.filter(i=>i!==anchor);
+  others.sort((a,b)=>{
+    const angA=polarAngle(pts[anchor],pts[a]),angB=polarAngle(pts[anchor],pts[b]);
+    if(Math.abs(angA-angB)<1e-9)return dist2(pts[anchor],pts[a])-dist2(pts[anchor],pts[b]);
+    return angA-angB;
+  });
+  const sorted=[anchor,...others];
+  steps.push({type:'sort',desc:`Sorted ${n-1} points by polar angle relative to anchor P${anchor}`,line:2,
+    highlights:[],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],sortedOrder:[...sorted],
+    stats:{cross:0,comp:n-1+Math.ceil(n*Math.log2(n)),push:0,pop:0}});
+
+  // process
+  const stack=[sorted[0],sorted[1]];
+  let stats={cross:0,comp:steps[steps.length-1].stats.comp,push:2,pop:0};
+  steps.push({type:'init-stack',desc:`Initialize stack with P${sorted[0]} and P${sorted[1]}`,line:3,
+    highlights:[],hullSet:new Set(stack),anchor,candidate:sorted[1],edges:[[sorted[0],sorted[1]]],stack:[...stack],
+    stats:{...stats}});
+
+  for(let i=2;i<sorted.length;i++){
+    const pi=sorted[i];
+    steps.push({type:'consider',desc:`Consider P${pi}(${pts[pi]})`,line:4,
+      highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
+      edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
+      arcCenter:stack[stack.length-2],arcFrom:stack[stack.length-1],arcTo:pi});
+
+    while(stack.length>1){
+      const top=stack[stack.length-1],sec=stack[stack.length-2];
+      const cp=cross(pts[sec],pts[top],pts[pi]);
+      stats.cross++;stats.comp++;
+      if(cp<=0){
+        // pop — right turn or collinear
+        const popped=stack.pop();stats.pop++;
+        steps.push({type:'pop',desc:`Cross product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)} ≤ 0 → Right turn! Pop P${top}`,line:6,
+          highlights:[top],hullSet:new Set(stack),anchor,candidate:pi,
+          edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
+          arcCenter:sec,arcFrom:top,arcTo:pi});
+      } else {
+        steps.push({type:'keep',desc:`Cross product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)} > 0 → Left turn. Keep P${top}`,line:5,
+          highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
+          edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
+          arcCenter:sec,arcFrom:top,arcTo:pi});
+        break;
+      }
+    }
+    stack.push(pi);stats.push++;
+    steps.push({type:'push',desc:`Push P${pi} onto stack`,line:7,
+      highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
+      edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats}});
+  }
+  // close hull
+  const finalEdges=stack.map((s,j)=>[s,stack[(j+1)%stack.length]]);
+  steps.push({type:'done',desc:`Convex hull complete! ${stack.length} vertices found.`,line:8,
+    highlights:[],hullSet:new Set(stack),anchor,candidate:null,edges:finalEdges,stack:[...stack],stats:{...stats}});
+  return steps;
+}
+
+// ===== JARVIS MARCH STEP GENERATOR =====
+function jarvisSteps(pts){
+  const steps=[];const n=pts.length;if(n<3)return steps;
+  // find leftmost
+  let start=0;
+  for(let i=1;i<n;i++){if(pts[i][0]<pts[start][0]||(pts[i][0]===pts[start][0]&&pts[i][1]<pts[start][1]))start=i}
+  steps.push({type:'start',desc:`Found leftmost point: P${start}(${pts[start]})`,line:1,
+    highlights:[],hullSet:new Set([start]),anchor:start,candidate:null,edges:[],stack:[start],
+    stats:{cross:0,comp:n-1,push:0,pop:0}});
+
+  const hull=[start];let current=start;
+  let stats={cross:0,comp:n-1,push:1,pop:0};
+  let iter=0;
+  do{
+    let next=(current+1)%n;
+    steps.push({type:'search-start',desc:`From P${current}, searching for next hull point. Initial candidate: P${next}`,line:2,
+      highlights:[],hullSet:new Set(hull),anchor:start,candidate:next,
+      edges:hull.length>1?hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]):[],stack:[...hull],stats:{...stats},
+      arcCenter:current,arcFrom:null,arcTo:next});
+
+    for(let i=0;i<n;i++){
+      if(i===current||i===next)continue;
+      const cp=cross(pts[current],pts[next],pts[i]);
+      stats.cross++;stats.comp++;
+      if(cp>0||(cp===0&&dist2(pts[current],pts[i])>dist2(pts[current],pts[next]))){
+        steps.push({type:'better',desc:`P${i} is more counter-clockwise than P${next} from P${current} (cross=${cp.toFixed(1)}). New candidate: P${i}`,line:3,
+          highlights:[next],hullSet:new Set(hull),anchor:start,candidate:i,
+          edges:hull.length>1?hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]):[],stack:[...hull],stats:{...stats},
+          arcCenter:current,arcFrom:next,arcTo:i});
+        next=i;
+      }
+    }
+    hull.push(next);stats.push++;
+    const currentEdges=hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]);
+    steps.push({type:'hull-add',desc:`P${next} confirmed as next hull vertex. Edge P${current}→P${next} added.`,line:4,
+      highlights:[],hullSet:new Set(hull),anchor:start,candidate:next,edges:currentEdges,stack:[...hull],stats:{...stats}});
+    current=next;iter++;
+    if(iter>n+2)break;// safety
+  }while(current!==start);
+
+  const finalEdges=hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]);
+  // close it
+  if(hull[hull.length-1]===hull[0])hull.pop();
+  const closeEdges=hull.map((h,j)=>[h,hull[(j+1)%hull.length]]);
+  steps.push({type:'done',desc:`Jarvis March complete! ${hull.length} hull vertices found.`,line:5,
+    highlights:[],hullSet:new Set(hull),anchor:start,candidate:null,edges:closeEdges,stack:[...hull],stats:{...stats}});
+  return steps;
+}
+
+// ===== PSEUDOCODE DATA =====
+const PSEUDO={
+graham:[
+  'function GrahamScan(points):',
+  '  anchor ← point with lowest y',
+  '  sort others by polar angle from anchor',
+  '  stack ← [anchor, sorted[0]]',
+  '  for each point p in sorted[1..n]:',
+  '    while cross(second, top, p) ≤ 0:',
+  '      pop stack         // right turn',
+  '    push p onto stack   // left turn',
+  '  return stack          // convex hull'
+],
+jarvis:[
+  'function JarvisMarch(points):',
+  '  start ← leftmost point',
+  '  current ← start',
+  '  do:',
+  '    next ← initial candidate',
+  '    for each point p:',
+  '      if cross(current,next,p) > 0:',
+  '        next ← p  // more counter-clockwise',
+  '    add next to hull',
+  '  while next ≠ start',
+  '  return hull'
+]};
+
+function renderPseudo(algo){
+  const wrap=$('pseudoWrap');wrap.innerHTML='';
+  const lines=PSEUDO[algo]||PSEUDO.graham;
+  lines.forEach((l,i)=>{
+    const div=document.createElement('div');div.className='pseudo-line';div.dataset.line=i;
+    div.innerHTML=`<span class="ln">${i+1}</span>${l.replace(/</g,'&lt;')}`;
+    wrap.appendChild(div);
+  });
+}
+function highlightLine(n){
+  document.querySelectorAll('.pseudo-line').forEach(el=>el.classList.remove('active'));
+  if(n==null)return;
+  const el=document.querySelector(`.pseudo-line[data-line="${n}"]`);
+  if(el){el.classList.add('active');el.scrollIntoView({block:'nearest',behavior:'smooth'})}
+}
+
+// ===== STACK VIZ =====
+function renderStack(stack,pts){
+  const el=$('stackViz');el.innerHTML='';
+  if(!stack||!stack.length){el.innerHTML='<span style="color:var(--muted);font-size:.72rem">Empty</span>';return}
+  stack.forEach(i=>{
+    const d=document.createElement('div');d.className='stack-item';
+    d.textContent=`P${i}(${pts[i]})`;el.appendChild(d);
+  });
+}
+
+// ===== STATS =====
+function renderStats(st){
+  const animate=(el,val)=>{el.style.transform='scale(1.15)';el.textContent=val;
+    setTimeout(()=>el.style.transform='scale(1)',200)};
+  animate($('statCross'),st.cross);animate($('statComp'),st.comp);
+  animate($('statPush'),st.push);animate($('statPop'),st.pop);
+}
+
+// ===== STATUS =====
+function setStatus(s){
+  const el=$('statusPill');el.className='status-pill status-'+s.toLowerCase();el.textContent=s;
+}
+
+// ===== HISTORY =====
+function addHistory(step,idx){
+  const tbody=$('historyBody');
+  const tr=document.createElement('tr');
+  tr.className=step.type==='pop'?'h-pop':step.type==='push'||step.type==='hull-add'?'h-push':
+    step.type==='sort'?'h-sort':step.type==='done'?'h-hull':'';
+  tr.innerHTML=`<td>${idx}</td><td>${step.type}</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${step.desc.substring(0,60)}</td><td>${step.type==='pop'?'❌ Removed':step.type==='push'||step.type==='hull-add'?'✅ Added':step.type==='done'?'🏁 Done':'—'}</td>`;
+  tr.style.cursor='pointer';
+  tr.addEventListener('click',()=>goToStep(idx));
+  tbody.appendChild(tr);
+  tr.scrollIntoView({block:'nearest'});
+}
+
+// ===== SPEED =====
+$('speedSlider').addEventListener('input',e=>{$('speedVal').textContent=e.target.value+'x'});
+function getSpeed(){return parseFloat($('speedSlider').value)||1}
+
+// ===== SELECTED ALGO =====
+function getAlgo(){return document.querySelector('input[name=algo]:checked').value}
+
+// ===== BUILD STEPS =====
+function buildSteps(){
+  reset();parseAndRender();
+  if(S.points.length<3){$('explainBox').innerHTML='<b style="color:var(--red)">Need at least 3 points.</b>';return}
+  S.algo=getAlgo();
+  if(S.algo==='both'){
+    S.steps=[...grahamSteps(S.points),...jarvisSteps(S.points)];
+    renderPseudo('graham');
+  }else{
+    S.steps=S.algo==='graham'?grahamSteps(S.points):jarvisSteps(S.points);
+    renderPseudo(S.algo);
+  }
+  $('stepCounter').textContent=`Step 0 / ${S.steps.length}`;
+  setStatus('Ready');
+  $('explainBox').innerHTML='Steps built! Click <b>Step</b> or <b>Play</b> to begin.';
+}
+
+// ===== APPLY STEP =====
+function applyStep(idx){
+  if(idx<0||idx>=S.steps.length)return;
+  S.stepIdx=idx;
+  const st=S.steps[idx];
+  renderPoints(S.points,st.highlights,st.hullSet,st.anchor,st.candidate);
+  renderEdges(S.points,st.edges,st.type!=='done');
+  if(st.arcCenter!=null)renderArc(S.points,st.arcCenter,st.arcFrom,st.arcTo);
+  else $('arcsG').innerHTML='';
+  renderStats(st.stats);
+  renderStack(st.stack,S.points);
+  highlightLine(st.line!=null?st.line-1:null);
+  $('explainBox').innerHTML=st.desc;
+  $('stepCounter').textContent=`Step ${idx+1} / ${S.steps.length}`;
+  addHistory(st,idx+1);
+  if(st.type==='done')setStatus('Done');
+}
+
+function goToStep(idx){
+  // clear history up to that point and rebuild
+  $('historyBody').innerHTML='';
+  S.stepIdx=idx-1;
+  for(let i=0;i<idx;i++){
+    const st=S.steps[i];
+    const tr=document.createElement('tr');
+    tr.className=st.type==='pop'?'h-pop':st.type==='push'||st.type==='hull-add'?'h-push':
+      st.type==='sort'?'h-sort':st.type==='done'?'h-hull':'';
+    tr.innerHTML=`<td>${i+1}</td><td>${st.type}</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${st.desc.substring(0,60)}</td><td>${st.type==='pop'?'❌':st.type==='push'||st.type==='hull-add'?'✅':st.type==='done'?'🏁':'—'}</td>`;
+    tr.style.cursor='pointer';
+    tr.addEventListener('click',()=>goToStep(i+1));
+    $('historyBody').appendChild(tr);
+  }
+  applyStep(idx-1);
+  if(S.playing){pause()}
+  setStatus(S.steps[idx-1].type==='done'?'Done':'Paused');
+}
+
+// ===== PLAYBACK =====
+function stepForward(){
+  if(!S.steps.length)return;
+  if(S.stepIdx>=S.steps.length-1)return;
+  setStatus(S.playing?'Playing':'Paused');
+  applyStep(S.stepIdx+1);
+}
+function play(){
+  if(!S.steps.length)return;
+  if(S.stepIdx>=S.steps.length-1){reset();buildSteps()}
+  S.playing=true;setStatus('Playing');
+  function tick(){
+    if(!S.playing)return;
+    if(S.stepIdx>=S.steps.length-1){S.playing=false;setStatus('Done');return}
+    stepForward();
+    S.timer=setTimeout(tick,Math.max(100,700/getSpeed()));
+  }
+  tick();
+}
+function pause(){S.playing=false;clearTimeout(S.timer);setStatus('Paused')}
+function reset(){
+  pause();S.steps=[];S.stepIdx=-1;
+  S.stats={cross:0,comp:0,push:0,pop:0};
+  $('pointsG').innerHTML='';$('edgesG').innerHTML='';$('arcsG').innerHTML='';$('labelsG').innerHTML='';
+  $('historyBody').innerHTML='';$('pseudoWrap').innerHTML='';
+  $('stackViz').innerHTML='<span style="color:var(--muted);font-size:.72rem">Empty</span>';
+  $('explainBox').innerHTML='Load a preset or enter points, then click <b>Build Steps</b>.';
+  $('stepCounter').textContent='Step 0 / 0';
+  renderStats({cross:0,comp:0,push:0,pop:0});setStatus('Idle');
+  if(S.points.length){calcTransform(S.points);drawGrid();renderPoints(S.points,[])}
+}
+
+// ===== EDUCATIONAL CONTENT =====
+function toggleEdu(btn){btn.classList.toggle('open');btn.nextElementSibling.classList.toggle('open')}
+
+// fill educational content on load
+function initEdu(){
+$('eduOverview').innerHTML=`
+<h4>What is a Convex Hull?</h4>
+<p>Imagine stretching a rubber band around a set of nails on a board. The shape the rubber band forms is the <b>convex hull</b> — the smallest convex polygon that contains all the points.</p>
+<p>Formally: given a set of points S, the convex hull is the smallest convex set containing S. Every point in S is either on the boundary or inside the hull.</p>
+<h4>Real-World Applications</h4>
+<p>• <b>Computer graphics</b>: collision detection, bounding volumes<br>
+• <b>GIS</b>: defining boundaries of geographic regions<br>
+• <b>Robotics</b>: path planning, obstacle avoidance<br>
+• <b>Statistics</b>: identifying outliers in datasets<br>
+• <b>Image processing</b>: shape recognition and classification</p>
+<div class="concept-box"><h5>The Key Operation: Cross Product</h5>
+<p>For three points O, A, B: <code>cross(O,A,B) = (A.x−O.x)(B.y−O.y) − (A.y−O.y)(B.x−O.x)</code></p>
+<p>• Positive → left turn (counter-clockwise)<br>• Negative → right turn (clockwise)<br>• Zero → collinear</p></div>`;
+
+$('eduWorked').innerHTML=`
+<h4>Worked Example: 6 Points</h4>
+<p>Points: P0(1,1) P1(4,2) P2(5,5) P3(2,4) P4(3,3) P5(1,5)</p>
+<h4>Graham Scan</h4>
+<p><b>Step 1:</b> Anchor = P0(1,1) — lowest y.<br>
+<b>Step 2:</b> Sort by polar angle from P0: P1, P4, P2, P3, P5.<br>
+<b>Step 3:</b> Stack = [P0, P1]. Process P4: cross(P0,P1,P4) > 0 → left turn, push P4.<br>
+<b>Step 4:</b> Process P2: cross(P1,P4,P2) > 0 → left turn, push P2.<br>
+<b>Step 5:</b> Process P3: cross(P4,P2,P3) > 0 → left turn, push P3.<br>
+<b>Step 6:</b> Process P5: cross(P2,P3,P5) > 0 → left turn, push P5.<br>
+<b>Result:</b> Hull = [P0, P1, P2, P5] (P4 and P3 are interior).</p>
+<h4>Jarvis March</h4>
+<p><b>Step 1:</b> Start at P0 (leftmost).<br>
+<b>Step 2:</b> From P0, scan all points — P1 is most counter-clockwise.<br>
+<b>Step 3:</b> From P1, P2 is most counter-clockwise.<br>
+<b>Step 4:</b> From P2, P5. From P5, P0. Hull = [P0, P1, P2, P5].</p>`;
+
+$('eduConcepts').innerHTML=`
+<h4>Polar Angle Sorting (Graham Scan)</h4>
+<p>Points are sorted by their angle from the anchor using <code>atan2(dy, dx)</code>. This ensures we process points in counter-clockwise order, which is essential for the stack-based approach.</p>
+<div class="concept-box"><h5>Orientation Test</h5>
+<p>The cross product tells us the orientation of three ordered points. This is the fundamental operation in both algorithms — used for sorting in Graham and for candidate selection in Jarvis.</p></div>
+<div class="concept-box warn"><h5>Common Mistake: Collinear Points</h5>
+<p>When three points are collinear (cross product = 0), we must decide: keep the farthest point and discard closer ones. Failing to handle this leads to incorrect hulls with redundant vertices.</p></div>
+<div class="concept-box warn"><h5>Common Mistake: Duplicate Points</h5>
+<p>Duplicate points can cause infinite loops in Jarvis March. Always filter or handle duplicates before running the algorithm.</p></div>`;
+
+$('eduCLO').innerHTML=`
+<h4>CLO-1: Complexity Comparison</h4>
+<div class="concept-box"><h5>Graham Scan: O(n log n)</h5>
+<p>Dominated by the sorting step. The stack processing is O(n) since each point is pushed and popped at most once. Total: O(n log n) + O(n) = <b>O(n log n)</b>.</p></div>
+<div class="concept-box"><h5>Jarvis March: O(nh)</h5>
+<p>For each of the <b>h</b> hull vertices, we scan all <b>n</b> points. When h is small (e.g., h = 3), this is nearly O(n). When h ≈ n (all points on hull), this degrades to <b>O(n²)</b>.</p></div>
+<svg class="clo-chart" viewBox="0 0 400 140">
+<rect width="400" height="140" fill="var(--panel)" rx="6"/>
+<text x="200" y="16" text-anchor="middle" fill="var(--muted)" font-size="10">Complexity Growth: n log n vs nh</text>
+<g transform="translate(40,25)">
+<line x1="0" y1="100" x2="320" y2="100" stroke="var(--border)" stroke-width="1"/>
+<line x1="0" y1="0" x2="0" y2="100" stroke="var(--border)" stroke-width="1"/>
+<text x="160" y="115" text-anchor="middle" fill="var(--muted)" font-size="9">n (input size)</text>
+<text x="-8" y="50" text-anchor="middle" fill="var(--muted)" font-size="9" transform="rotate(-90,-8,50)">time</text>
+${(()=>{let graham='',jarvis='',jarvisBest='';for(let i=0;i<=32;i++){const n=i*10;const x=i*10;
+const yG=100-Math.min(100,(n?n*Math.log2(n):0)/50);
+const yJ=100-Math.min(100,n*n/500);
+const yJB=100-Math.min(100,n*3/5);
+graham+=`${i?'L':'M'}${x},${yG} `;jarvis+=`${i?'L':'M'}${x},${yJ} `;jarvisBest+=`${i?'L':'M'}${x},${yJB} `;}
+return`<path d="${graham}" fill="none" stroke="var(--accent)" stroke-width="2" opacity=".9"/>
+<path d="${jarvis}" fill="none" stroke="var(--red)" stroke-width="2" opacity=".7" stroke-dasharray="4,3"/>
+<path d="${jarvisBest}" fill="none" stroke="var(--green)" stroke-width="1.5" opacity=".6" stroke-dasharray="2,2"/>
+<text x="240" y="20" fill="var(--accent)" font-size="8">Graham O(n log n)</text>
+<text x="240" y="45" fill="var(--red)" font-size="8">Jarvis O(n²) worst</text>
+<text x="240" y="80" fill="var(--green)" font-size="8">Jarvis O(n) best</text>`})()}
+</g></svg>
+<h4>CLO-2: Key Subroutine Analysis</h4>
+<p><b>Graham Scan — Polar Angle Sort:</b> Uses a comparison-based sort (typically merge sort) to order points by angle. This O(n log n) step is what determines the overall complexity. The sort enables the linear-time stack scan.</p>
+<p><b>Jarvis March — Minimum Angle Search:</b> At each hull vertex, linearly scans all n points to find the one making the smallest counter-clockwise angle. This O(n) search is repeated h times.</p>
+<h4>CLO-3: Paradigm Comparison</h4>
+<div class="concept-box"><h5>Graham Scan: Sort-Then-Scan + Stack</h5>
+<p>Preprocesses with a global sort, then makes a single pass using a stack to enforce convexity. The stack acts as a "memory" of tentative hull vertices — non-convex points are efficiently removed by popping.</p></div>
+<div class="concept-box"><h5>Jarvis March: Greedy Gift Wrapping</h5>
+<p>Builds the hull incrementally by always choosing the "best" next vertex (most counter-clockwise). No preprocessing needed — each step is locally optimal. Simple but potentially expensive when many points lie on the hull.</p></div>
+<div class="concept-box"><h5>When to Use Which?</h5>
+<p>• <b>Graham Scan</b>: Best general-purpose choice. Always O(n log n) regardless of output size.<br>
+• <b>Jarvis March</b>: Better when h ≪ n (few hull points). Output-sensitive — adapts to the answer's complexity.<br>
+• <b>Rule of thumb</b>: If you expect most points to be interior → Jarvis. If unsure → Graham.</p></div>`;
+}
+
+// ===== INIT =====
+drawGrid();initEdu();renderPseudo('graham');
+</script>
+</body>
+</html>
