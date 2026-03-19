@@ -588,19 +588,19 @@ function jarvisSteps(pts){
   // find leftmost
   let start=0;
   for(let i=1;i<n;i++){if(pts[i][0]<pts[start][0]||(pts[i][0]===pts[start][0]&&pts[i][1]<pts[start][1]))start=i}
-  steps.push({type:'start',desc:`Found leftmost point: P${start}(${pts[start]})`,line:1,
+  steps.push({type:'start',desc:`Start by finding the leftmost point: P${start}(${pts[start]}). Because it is the extreme left edge, it is mathematically guaranteed to be on the Convex Hull boundary.`,line:1,
     highlights:[],hullSet:new Set([start]),anchor:start,candidate:null,edges:[],stack:[start],
-    stats:{cross:0,comp:n-1,push:0,pop:0}});
+    stats:{cross:0,comp:n-1,push:0,pop:0}, result: '📍 Start Point'});
 
   const hull=[start];let current=start;
   let stats={cross:0,comp:n-1,push:1,pop:0};
   let iter=0;
   do{
     let next=(current+1)%n;
-    steps.push({type:'search-start',desc:`From P${current}, searching for next hull point. Initial candidate: P${next}`,line:2,
+    steps.push({type:'search-start',desc:`From current point P${current}, we throw an initial "candidate rope" to P${next}. We will now sweep across all other points to see if anyone is "more exterior" than P${next}.`,line:2,
       highlights:[],hullSet:new Set(hull),anchor:start,candidate:next,
       edges:hull.length>1?hull.slice(0,-1).map((h,j)=>[h,hull[j+1]]):[],stack:[...hull],stats:{...stats},
-      arcCenter:current,arcFrom:null,arcTo:next});
+      arcCenter:current,arcFrom:null,arcTo:next, result: '🪢 New Ray'});
 
     for(let i=0;i<n;i++){
       if(i===current||i===next)continue;
