@@ -679,7 +679,7 @@ function highlightLine(n){
   document.querySelectorAll('.pseudo-line').forEach(el=>el.classList.remove('active'));
   if(n==null)return;
   const el=document.querySelector(`.pseudo-line[data-line="${n}"]`);
-  if(el){el.classList.add('active');el.scrollIntoView({block:'nearest',behavior:'smooth'})}
+  if(el){el.classList.add('active');}
 }
 
 // ===== STACK VIZ =====
@@ -716,7 +716,8 @@ function addHistory(step,idx){
   tr.style.cursor='pointer';
   tr.addEventListener('click',()=>goToStep(idx));
   tbody.appendChild(tr);
-  tr.scrollIntoView({block:'nearest'});
+  const wrap = $('historyWrap');
+  if (wrap) wrap.scrollTop = wrap.scrollHeight;
 }
 
 // ===== SPEED =====
