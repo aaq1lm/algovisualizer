@@ -452,13 +452,16 @@ function renderArc(pts,centerIdx,fromIdx,toIdx){
   const a1=Math.atan2(-(ty(f[1])-ty(c[1])),tx(f[0])-tx(c[0]));
   const a2=Math.atan2(-(ty(t[1])-ty(c[1])),tx(t[0])-tx(c[0]));
   const cx=tx(c[0]),cy=ty(c[1]),R=30;
-  let start=a1,end=a2;
-  // draw small arc
-  const largeArc=Math.abs(end-start)>Math.PI?1:0;
-  const sx=cx+R*Math.cos(start),sy=cy-R*Math.sin(start);
-  const ex=cx+R*Math.cos(end),ey=cy-R*Math.sin(end);
+  
+  let diff = a2 - a1;
+  while(diff <= -Math.PI) diff += 2*Math.PI;
+  while(diff > Math.PI) diff -= 2*Math.PI;
+  const sweep = diff > 0 ? 0 : 1;
+  
+  const sx=cx+R*Math.cos(a1),sy=cy-R*Math.sin(a1);
+  const ex=cx+R*Math.cos(a2),ey=cy-R*Math.sin(a2);
   const path=svgEl('path',{
-    d:`M${sx},${sy} A${R},${R} 0 ${largeArc},0 ${ex},${ey}`,
+    d:`M${sx},${sy} A${R},${R} 0 0,${sweep} ${ex},${ey}`,
     fill:'none',stroke:'var(--orange)','stroke-width':1.5,'stroke-dasharray':'4,3',opacity:'.7',filter:'url(#glow)'
   });
   g.appendChild(path);
