@@ -512,9 +512,9 @@ function grahamSteps(pts){
   for(let i=1;i<n;i++){
     if(pts[i][1]<pts[anchor][1]||(pts[i][1]===pts[anchor][1]&&pts[i][0]<pts[anchor][0]))anchor=i;
   }
-  steps.push({type:'anchor',desc:`Found anchor: P${anchor}(${pts[anchor]}) — lowest y-coordinate`,line:1,
+  steps.push({type:'anchor',desc:`Start by finding the lowest point: P${anchor}(${pts[anchor]}). Because it is the furthest down, it is mathematically guaranteed to be a corner on the outer Convex Hull boundary.`,line:1,
     highlights:[],hullSet:new Set(),anchor,candidate:null,edges:[],stack:[anchor],
-    stats:{cross:0,comp:n-1,push:0,pop:0},arcCenter:null,arcFrom:null,arcTo:null});
+    stats:{cross:0,comp:n-1,push:0,pop:0},arcCenter:null,arcFrom:null,arcTo:null, result: '📍 Anchor Set'});
 
   // sort by polar angle
   const others=idx.filter(i=>i!==anchor);
@@ -526,31 +526,30 @@ function grahamSteps(pts){
     if(Math.abs(angA-angB)<1e-9) cmp = dist2(pts[anchor],pts[a])-dist2(pts[anchor],pts[b]);
     else cmp = angA-angB;
     
-    // Clarify result: say which point is placed before the other
     const resStr = cmp < 0 ? `→ P${a} before P${b}` : cmp > 0 ? `→ P${b} before P${a}` : `→ Tie`;
-    steps.push({type:'compare-sort',desc:`Sorting: Compare angles of P${a} and P${b} from anchor P${anchor}`,line:2,
+    steps.push({type:'compare-sort',desc:`Sorting: Comparing polar angles of P${a} vs P${b} from anchor P${anchor}. A smaller angle means the point is further "right" in our counter-clockwise sweep.`,line:2,
       highlights:[a,b],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],
       arcCenter:anchor,arcFrom:a,arcTo:b,stats:{...stats}, result: resStr});
     
     return cmp;
   });
   const sorted=[anchor,...others];
-  steps.push({type:'sort',desc:`Sorted ${n-1} points by polar angle relative to anchor P${anchor}`,line:2,
+  steps.push({type:'sort',desc:`Finished sorting! The ${n-1} remaining points are now ordered by their polar angle (counter-clockwise sweep) relative to anchor P${anchor}.`,line:2,
     highlights:[],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],sortedOrder:[...sorted],
-    stats:{...stats}});
+    stats:{...stats}, result: '🔢 Array Ordered'});
   
   const stack=[sorted[0],sorted[1]];
   stats.push += 2;
-  steps.push({type:'init-stack',desc:`Initialize stack with P${sorted[0]} and P${sorted[1]}`,line:3,
+  steps.push({type:'init-stack',desc:`Initialize our "Hull Stack" with anchor P${sorted[0]} and the first sorted point P${sorted[1]}. Two points inherently form a valid straight convex edge!`,line:3,
     highlights:[],hullSet:new Set(stack),anchor,candidate:sorted[1],edges:[[sorted[0],sorted[1]]],stack:[...stack],
-    stats:{...stats}});
+    stats:{...stats}, result: '📚 Stack Ready'});
 
   for(let i=2;i<sorted.length;i++){
     const pi=sorted[i];
-    steps.push({type:'consider',desc:`Consider P${pi}(${pts[pi]})`,line:4,
+    steps.push({type:'consider',desc:`Next up: P${pi}. We will temporarily attach this point to our hull, and test if the new angle formed makes a valid "Left Turn" (convex).`,line:4,
       highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
       edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-      arcCenter:stack[stack.length-1],arcFrom:stack[stack.length-2],arcTo:pi});
+      arcCenter:stack[stack.length-1],arcFrom:stack[stack.length-2],arcTo:pi, result: '🔎 Analyzing'});
 
     while(stack.length>1){
       const top=stack[stack.length-1],sec=stack[stack.length-2];
@@ -559,27 +558,27 @@ function grahamSteps(pts){
       if(cp<=0){
         // pop — right turn or collinear
         const popped=stack.pop();stats.pop++;
-        steps.push({type:'pop',desc:`Cross product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)} ≤ 0 → Right turn! Pop P${top}`,line:6,
+        steps.push({type:'pop',desc:`Calculated Cross Product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)}. Since it is ≤ 0, this forms a RIGHT TURN (concave curve). We must BACKTRACK and remove P${top} from the hull!`,line:6,
           highlights:[top],hullSet:new Set(stack),anchor,candidate:pi,
           edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-          arcCenter:top,arcFrom:sec,arcTo:pi});
+          arcCenter:top,arcFrom:sec,arcTo:pi, result: '⏪ Removed (Concave)'});
       } else {
-        steps.push({type:'keep',desc:`Cross product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)} > 0 → Left turn. Keep P${top}`,line:5,
+        steps.push({type:'keep',desc:`Calculated Cross Product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)}. Since it is > 0, this forms a LEFT TURN (valid convex curve). P${top} is safely kept as a corner on our boundary.`,line:5,
           highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
           edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-          arcCenter:top,arcFrom:sec,arcTo:pi});
+          arcCenter:top,arcFrom:sec,arcTo:pi, result: '✅ Kept (Convex)'});
         break;
       }
     }
     stack.push(pi);stats.push++;
-    steps.push({type:'push',desc:`Push P${pi} onto stack`,line:7,
+    steps.push({type:'push',desc:`Push P${pi} onto the stack. It is currently a valid part of the our convex boundary (until later points potentially prove otherwise).`,line:7,
       highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
-      edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats}});
+      edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats}, result: '➕ Pushed'});
   }
   // close hull
   const finalEdges=stack.map((s,j)=>[s,stack[(j+1)%stack.length]]);
-  steps.push({type:'done',desc:`Convex hull complete! ${stack.length} vertices found.`,line:8,
-    highlights:[],hullSet:new Set(stack),anchor,candidate:null,edges:finalEdges,stack:[...stack],stats:{...stats}});
+  steps.push({type:'done',desc:`Convex hull complete! Final stack array holds our ${stack.length} outer boundary points.`,line:8,
+    highlights:[],hullSet:new Set(stack),anchor,candidate:null,edges:finalEdges,stack:[...stack],stats:{...stats}, result: '🏁 Done'});
   return steps;
 }
 
@@ -711,8 +710,8 @@ function addHistory(step,idx){
   const tr=document.createElement('tr');
   tr.className=step.type==='pop'?'h-pop':step.type==='push'||step.type==='hull-add'?'h-push':
     step.type==='sort'?'h-sort':step.type==='done'?'h-hull':'';
-  const resLabel = step.result || (step.type==='pop'?'❌ Removed':step.type==='push'||step.type==='hull-add'?'✅ Added':step.type==='done'?'🏁 Done':'—');
-  tr.innerHTML=`<td>${idx}</td><td>${step.type}</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${step.desc.substring(0,60)}</td><td>${resLabel}</td>`;
+  const resLabel = step.result || '—';
+  tr.innerHTML=`<td>${idx}</td><td>${step.type}</td><td style="max-width:350px;white-space:normal;line-height:1.4">${step.desc}</td><td style="font-weight:600">${resLabel}</td>`;
   tr.style.cursor='pointer';
   tr.addEventListener('click',()=>goToStep(idx));
   tbody.appendChild(tr);
@@ -771,8 +770,8 @@ function goToStep(idx){
     const tr=document.createElement('tr');
     tr.className=st.type==='pop'?'h-pop':st.type==='push'||st.type==='hull-add'?'h-push':
       st.type==='sort'?'h-sort':st.type==='done'?'h-hull':'';
-    const resLabel = st.result || (st.type==='pop'?'❌':st.type==='push'||st.type==='hull-add'?'✅':st.type==='done'?'🏁':'—');
-    tr.innerHTML=`<td>${i+1}</td><td>${st.type}</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${st.desc.substring(0,60)}</td><td>${resLabel}</td>`;
+    const resLabel = st.result || '—';
+    tr.innerHTML=`<td>${i+1}</td><td>${st.type}</td><td style="max-width:350px;white-space:normal;line-height:1.4">${st.desc}</td><td style="font-weight:600">${resLabel}</td>`;
     tr.style.cursor='pointer';
     tr.addEventListener('click',()=>goToStep(i+1));
     $('historyBody').appendChild(tr);
