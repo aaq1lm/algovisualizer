@@ -448,21 +448,33 @@ function renderEdges(pts,edgeList,partial){
 function renderArc(pts,centerIdx,fromIdx,toIdx){
   const g=$('arcsG');g.innerHTML='';
   if(centerIdx==null||fromIdx==null||toIdx==null)return;
-  const c=pts[centerIdx],f=pts[fromIdx],t=pts[toIdx];
-  const a1=Math.atan2(-(ty(f[1])-ty(c[1])),tx(f[0])-tx(c[0]));
-  const a2=Math.atan2(-(ty(t[1])-ty(c[1])),tx(t[0])-tx(c[0]));
-  const cx=tx(c[0]),cy=ty(c[1]),R=30;
   
-  let diff = a2 - a1;
-  while(diff <= -Math.PI) diff += 2*Math.PI;
-  while(diff > Math.PI) diff -= 2*Math.PI;
-  const sweep = diff > 0 ? 0 : 1;
+  const cx=tx(pts[centerIdx][0]), cy=ty(pts[centerIdx][1]);
+  const fx=tx(pts[fromIdx][0]),   fy=ty(pts[fromIdx][1]);
+  const tx2=tx(pts[toIdx][0]),    ty2=ty(pts[toIdx][1]);
   
-  const sx=cx+R*Math.cos(a1),sy=cy-R*Math.sin(a1);
-  const ex=cx+R*Math.cos(a2),ey=cy-R*Math.sin(a2);
+  const v1x = fx-cx, v1y = fy-cy;
+  const v2x = tx2-cx, v2y = ty2-cy;
+  const len1 = Math.sqrt(v1x*v1x + v1y*v1y);
+  const len2 = Math.sqrt(v2x*v2x + v2y*v2y);
+  if(len1<1e-6 || len2<1e-6) return;
+  
+  const R = 30;
+  const sx = cx + (v1x/len1)*R;
+  const sy = cy + (v1y/len1)*R;
+  const ex = cx + (v2x/len2)*R;
+  const ey = cy + (v2y/len2)*R;
+  
+  const crossP = (v1x/len1)*(v2y/len2) - (v1y/len1)*(v2x/len2);
+  const sweep = crossP > 0 ? 1 : 0;
+  
+  const cfrom = svgEl('line',{x1:cx,y1:cy,x2:fx,y2:fy,stroke:'var(--orange)','stroke-width':1.5,'stroke-dasharray':'4,4',opacity:'.4'});
+  const cto = svgEl('line',{x1:cx,y1:cy,x2:tx2,y2:ty2,stroke:'var(--orange)','stroke-width':1.5,'stroke-dasharray':'4,4',opacity:'.8'});
+  g.appendChild(cfrom); g.appendChild(cto);
+  
   const path=svgEl('path',{
     d:`M${sx},${sy} A${R},${R} 0 0,${sweep} ${ex},${ey}`,
-    fill:'none',stroke:'var(--orange)','stroke-width':1.5,'stroke-dasharray':'4,3',opacity:'.7',filter:'url(#glow)'
+    fill:'none',stroke:'var(--orange)','stroke-width':1.5,'stroke-dasharray':'4,3',opacity:'.9',filter:'url(#glow)'
   });
   g.appendChild(path);
 }
@@ -505,7 +517,7 @@ function grahamSteps(pts){
     steps.push({type:'consider',desc:`Consider P${pi}(${pts[pi]})`,line:4,
       highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
       edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-      arcCenter:stack[stack.length-2],arcFrom:stack[stack.length-1],arcTo:pi});
+      arcCenter:stack[stack.length-1],arcFrom:stack[stack.length-2],arcTo:pi});
 
     while(stack.length>1){
       const top=stack[stack.length-1],sec=stack[stack.length-2];
@@ -517,12 +529,12 @@ function grahamSteps(pts){
         steps.push({type:'pop',desc:`Cross product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)} ≤ 0 → Right turn! Pop P${top}`,line:6,
           highlights:[top],hullSet:new Set(stack),anchor,candidate:pi,
           edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-          arcCenter:sec,arcFrom:top,arcTo:pi});
+          arcCenter:top,arcFrom:sec,arcTo:pi});
       } else {
         steps.push({type:'keep',desc:`Cross product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)} > 0 → Left turn. Keep P${top}`,line:5,
           highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
           edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-          arcCenter:sec,arcFrom:top,arcTo:pi});
+          arcCenter:top,arcFrom:sec,arcTo:pi});
         break;
       }
     }
