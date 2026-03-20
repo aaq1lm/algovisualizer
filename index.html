@@ -685,28 +685,28 @@ function jarvisSteps(pts){
 // ===== PSEUDOCODE DATA =====
 const PSEUDO={
 graham:[
-  'function GrahamScan(points):',
-  '  anchor ← point with lowest y',
-  '  sort others by polar angle from anchor',
-  '  stack ← [anchor, sorted[0]]',
-  '  for each point p in sorted[1..n]:',
-  '    while cross(second, top, p) ≤ 0:',
-  '      pop stack         // right turn',
-  '    push p onto stack   // left turn',
-  '  return stack          // convex hull'
+  {c:'function GrahamScan(points):', t:'Begins the O(n log n) algorithm that sweeps counter-clockwise.'},
+  {c:'  anchor ← point with lowest y', t:'Find the lowest point. This is guaranteed to be a corner of the convex hull.'},
+  {c:'  sort others by polar angle from anchor', t:'Sort the remaining points sequentially by the angle they form against the X-axis.'},
+  {c:'  stack ← [anchor, sorted[0]]', t:'Initialize our working boundary polygon with the first two points.'},
+  {c:'  for each point p in sorted[1..n]:', t:'Iterate through the points in counter-clockwise angular order.'},
+  {c:'    while cross(second, top, p) ≤ 0:', t:'If the cross product is ≤ 0, it means we took a RIGHT turn (a "dent" forming a concave shape).'},
+  {c:'      pop stack         // right turn', t:'To fix the dent, we delete the most recently added point off the boundary stack!'},
+  {c:'    push p onto stack   // left turn', t:'If the angle formed a LEFT turn (> 0), it is safely convex, so we keep the point.'},
+  {c:'  return stack          // convex hull', t:'The stack now perfectly represents the ordered vertices of the convex hull.'}
 ],
 jarvis:[
-  'function JarvisMarch(points):',
-  '  start ← leftmost point',
-  '  current ← start',
-  '  do:',
-  '    next ← initial candidate',
-  '    for each point p:',
-  '      if cross(current,next,p) > 0:',
-  '        next ← p  // more counter-clockwise',
-  '    add next to hull',
-  '  while next ≠ start',
-  '  return hull'
+  {c:'function JarvisMarch(points):', t:'Begins the robust "Gift Wrapping" algorithm which takes O(nh) time (where h is hull vertices).'},
+  {c:'  start ← leftmost point', t:'Find the leftmost point. This is mathematically guaranteed to be on the convex hull.'},
+  {c:'  current ← start', t:'Initialize our current building position at the anchor point.'},
+  {c:'  do:', t:'Begin the sweeping loop. This loop runs exactly h times as we build the perimeter.'},
+  {c:'    next ← initial candidate', t:'Temporarily guess that the very first point in the list is the next best boundary corner.'},
+  {c:'    for each point p:', t:'Linearly scan every remaining point to see if anyone beats our candidate.'},
+  {c:'      if cross(current,next,p) > 0:', t:'A positive Cross Product means point p forms a wider counter-clockwise exterior angle than our candidate.'},
+  {c:'        next ← p  // more counter-clockwise', t:'We discovered a more "exterior" point! Update our best guess.'},
+  {c:'    add next to hull', t:'After scanning all n points, we have genuinely discovered the next corner of the shape.'},
+  {c:'  while next ≠ start', t:'Repeat this sweeping process until we wrap the perimeter all the way back to the start.'},
+  {c:'  return hull', t:'The perimeter is complete. Return the ordered list of boundary points.'}
 ]};
 
 function renderPseudo(algo){
@@ -714,7 +714,8 @@ function renderPseudo(algo){
   const lines=PSEUDO[algo]||PSEUDO.graham;
   lines.forEach((l,i)=>{
     const div=document.createElement('div');div.className='pseudo-line';div.dataset.line=i;
-    div.innerHTML=`<span class="ln">${i+1}</span>${l.replace(/</g,'&lt;')}`;
+    div.title=l.t;
+    div.innerHTML=`<span class="ln">${i+1}</span>${l.c.replace(/</g,'&lt;')}`;
     wrap.appendChild(div);
   });
 }
