@@ -192,29 +192,28 @@ textarea:focus{border-color:var(--accent)}
 </div>
 </div>
 
-<div class="card" id="statsCard">
-<h3>&#128202; Statistics</h3>
-<div class="stats-grid">
-<div class="stat-box"><div class="val" id="statCross">0</div><div class="lbl">Cross Products</div></div>
-<div class="stat-box"><div class="val" id="statComp">0</div><div class="lbl">Comparisons</div></div>
-<div class="stat-box"><div class="val" id="statPush">0</div><div class="lbl">Stack Push</div></div>
-<div class="stat-box"><div class="val" id="statPop">0</div><div class="lbl">Stack Pop</div></div>
-</div>
+<div class="card" id="stackCard">
+<h3>⚙ Stack State</h3>
+<div class="stack-viz" id="stackViz"><span style="color:var(--muted);font-size:.72rem">Empty</span></div>
 </div>
 
 <div class="card" id="pseudoCard">
-<h3>&#128196; Pseudocode</h3>
+<h3>📄 Pseudocode</h3>
 <div class="pseudo-wrap" id="pseudoWrap"></div>
 </div>
 
 <div class="card">
-<h3>&#128161; Current Step</h3>
+<h3>💡 Current Step</h3>
 <div class="explain-box" id="explainBox">Load a preset or enter points, then click <b>Build Steps</b>.</div>
 </div>
 
-<div class="card">
-<h3>&#9881; Stack State</h3>
-<div class="stack-viz" id="stackViz"><span style="color:var(--muted);font-size:.72rem">Empty</span></div>
+<div class="card" id="statsCard" style="padding:10px 24px;border-top:1px solid var(--border)">
+<div style="display:flex;justify-content:space-between;font-size:0.75rem;font-family:var(--mono);color:var(--muted);">
+  <span>Cross: <span id="statCross" style="color:var(--accent);font-weight:600">0</span></span>
+  <span>Comp: <span id="statComp" style="color:var(--accent);font-weight:600">0</span></span>
+  <span>Push: <span id="statPush" style="color:var(--green);font-weight:600">0</span></span>
+  <span>Pop: <span id="statPop" style="color:var(--red);font-weight:600">0</span></span>
+</div>
 </div>
 
 </div>
@@ -497,9 +496,11 @@ function renderArc(pts,centerIdx,fromIdx,toIdx){
   
   const path=svgEl('path',{
     d:`M${sx},${sy} A${R},${R} 0 0,${sweep} ${ex},${ey}`,
-    fill:'none',stroke:'var(--cyan)','stroke-width':2,opacity:'.9',filter:'url(#glow)'
+    fill:'none',stroke:'#5ab8c9','stroke-width':2,opacity:'.9',filter:'url(#glow)'
   });
   g.appendChild(path);
+  
+  const lg=$('labelsG');
   
   if(sweepText) {
     const a1 = Math.atan2(-v1y, v1x), a2 = Math.atan2(-v2y, v2x);
@@ -507,18 +508,18 @@ function renderArc(pts,centerIdx,fromIdx,toIdx){
     while(diff <= -Math.PI) diff += 2*Math.PI;
     while(diff > Math.PI) diff -= 2*Math.PI;
     const midA = a1 + diff/2;
-    const mx = cx + 45 * Math.cos(midA);
-    const my = cy - 45 * Math.sin(midA);
-    const txt = svgEl('text', {x:mx, y:my, fill:'var(--cyan)', 'font-size':'11', 'font-weight':'600', 'text-anchor':'middle', 'alignment-baseline':'middle', 'font-family':'var(--sans)'});
+    const mx = cx + 50 * Math.cos(midA);
+    const my = cy - 50 * Math.sin(midA);
+    const txt = svgEl('text', {x:mx, y:my, dy:'.3em', fill:'#5ab8c9', 'font-size':'11', 'font-weight':'600', 'text-anchor':'middle', 'font-family':'system-ui, sans-serif'});
     txt.textContent = sweepText;
-    g.appendChild(txt);
+    lg.appendChild(txt);
   }
   
   if(labels) {
     const mkText = (x, y, str) => {
-      const t = svgEl('text', {x:x, y:y+22, fill:'#aaccff', 'font-size':'11', 'font-weight':'500', 'text-anchor':'middle', 'font-family':'var(--sans)'});
+      const t = svgEl('text', {x:x, y:y+22, fill:'#aaccff', 'font-size':'11', 'font-weight':'500', 'text-anchor':'middle', 'font-family':'system-ui, sans-serif'});
       t.textContent = str;
-      g.appendChild(t);
+      lg.appendChild(t);
     };
     if(labels[0]) mkText(cx, cy, labels[0]);
     if(labels[1]) mkText(fx, fy, labels[1]);
