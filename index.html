@@ -446,7 +446,7 @@ function easeInOutQuad(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
 function easeOutBack(t){const c1=1.70158;const c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2)}
 
 // ===== RENDER POINTS =====
-function renderPoints(pts,highlights,hullSet,anchorIdx,candidateIdx,indices,rejectedPoint){
+function renderPoints(pts,highlights,hullSet,anchorIdx,candidateIdx,indices,rejectedPoint,animateIndices){
   const gP=$('pointsG'),gL=$('labelsG');gP.innerHTML='';gL.innerHTML='';
   hullSet=hullSet||new Set();
   const labelLocs=[];
@@ -637,8 +637,24 @@ function grahamSteps(pts){
   });
   const sorted=[anchor,...others];
   const indices = {};
-  sorted.forEach((ptIdx, i) => indices[ptIdx] = i);
   const ghostEdges = [];
+  
+  // Start explicit VisuAlgo index sweeping loop
+  for (let i = 0; i < n; i++) {
+    const ptIdx = sorted[i];
+    indices[ptIdx] = i;
+    const arcObj = {};
+    if (i > 0) {
+      arcObj.arcCenter = anchor;
+      arcObj.arcFrom = sorted[i - 1];
+      arcObj.arcTo = ptIdx;
+      arcObj.sweepText = i.toString();
+      arcObj.arcLabels = ['prev', '', 'next'];
+    }
+    steps.push({type:'index-sweep',desc:`Indexing phase: Point P${ptIdx} is assigned sorted index ${i}. We sweep counter-clockwise from the anchor to chronologically stamp all points.`,line:2,
+      highlights:[ptIdx],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],sortedOrder:[...sorted],
+      stats:{...stats}, result: `Sweep ${i}`, indices: {...indices}, ghostEdges: [...ghostEdges], ...arcObj});
+  }
   
   steps.push({type:'sort',desc:`Finished sorting! The ${n-1} remaining points are now ordered by their polar angle (counter-clockwise sweep) relative to anchor P${anchor}.`,line:2,
     highlights:[],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],sortedOrder:[...sorted],
