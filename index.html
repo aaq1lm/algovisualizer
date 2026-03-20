@@ -159,6 +159,7 @@ textarea:focus{border-color:var(--accent)}
 .point-enter{animation:pointPop .35s cubic-bezier(.34,1.56,.64,1)}
 @keyframes pointPop{from{r:0;opacity:0}to{r:6;opacity:1}}
 .point-pulse{animation:pulse-glow 1.2s ease infinite}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -177,14 +178,14 @@ textarea:focus{border-color:var(--accent)}
 <div class="card" id="controlCard">
 <h3>&#9881; Controls</h3>
 <div class="algo-sel">
-<label><input type="radio" name="algo" value="graham" checked><span>Graham Scan</span></label>
-<label><input type="radio" name="algo" value="jarvis"><span>Jarvis March</span></label>
+<label><input type="radio" name="algo" value="graham" checked><span>Graham Scan<span style="display:block;font-size:.5rem;color:var(--green);letter-spacing:.5px;font-weight:400;margin-top:1px">Sort + Stack</span></span></label>
+<label><input type="radio" name="algo" value="jarvis"><span>Jarvis March<span style="display:block;font-size:.5rem;color:var(--orange);letter-spacing:.5px;font-weight:400;margin-top:1px">Greedy Paradigm</span></span></label>
 <label><input type="radio" name="algo" value="both"><span>Compare Both</span></label>
 </div>
 <textarea id="pointInput" placeholder="Enter points as x,y pairs (one per line)&#10;Example:&#10;2,3&#10;5,1&#10;7,6&#10;4,8"></textarea>
 <div class="preset-row">
 <button class="preset-btn" onclick="loadPreset('triangle')">Triangle</button>
-<button class="preset-btn" onclick="loadPreset('circle')">Circle (12)</button>
+<button class="preset-btn" onclick="loadPreset('circle')" style="border-color:var(--orange)">Jarvis Worst-Case</button>
 <button class="preset-btn" onclick="loadPreset('cluster')">Random Cluster</button>
 <button class="preset-btn" onclick="loadPreset('collinear')">Collinear Edge</button>
 <button class="preset-btn" onclick="loadPreset('star')">Star Shape</button>
@@ -351,6 +352,12 @@ function loadPreset(name){
   const pts=presets[name];if(!pts)return;
   $('pointInput').value=pts.map(p=>p.join(',')).join('\n');
   reset();parseAndRender();
+  if(name==='circle'){
+    $('explainBox').innerHTML=`<div style="border-left:3px solid var(--orange);padding:8px 14px;background:rgba(212,168,67,.06);animation:fadeSlide .4s ease">
+      <b style="color:var(--orange)">⚠ Jarvis March Worst-Case Scenario</b><br>
+      <span style="font-size:.82rem;color:var(--muted);line-height:1.6">All 12 points lie directly on the convex hull boundary (h = n = 12). This means Jarvis March must perform a full O(n) sweep for <i>every single vertex</i>, degrading its performance to <b style="color:var(--red)">O(n²)</b> — its absolute worst case. Graham Scan remains at O(n log n) regardless.</span>
+    </div>`;
+  }
 }
 
 // ===== PARSE INPUT =====
@@ -828,7 +835,9 @@ function buildSteps(){
   if(S.points.length<3){$('explainBox').innerHTML='<b style="color:var(--red)">Need at least 3 points.</b>';return}
   S.algo=getAlgo();
   if(S.algo==='both'){
-    S.steps=[...grahamSteps(S.points),...jarvisSteps(S.points)];
+    const gSteps=grahamSteps(S.points).map(s=>({...s,desc:`<b style="color:var(--accent);letter-spacing:.5px">[GRAHAM SCAN]</b> ${s.desc}`}));
+    const jSteps=jarvisSteps(S.points).map(s=>({...s,desc:`<b style="color:var(--green);letter-spacing:.5px">[JARVIS MARCH]</b> ${s.desc}`}));
+    S.steps=[...gSteps,...jSteps];
     renderPseudo('graham');
   }else{
     S.steps=S.algo==='graham'?grahamSteps(S.points):jarvisSteps(S.points);
@@ -954,7 +963,14 @@ $('eduConcepts').innerHTML=`
 <div class="concept-box warn"><h5>Common Mistake: Collinear Points</h5>
 <p>When three points are collinear (cross product = 0), we must decide: keep the farthest point and discard closer ones. Failing to handle this leads to incorrect hulls with redundant vertices.</p></div>
 <div class="concept-box warn"><h5>Common Mistake: Duplicate Points</h5>
-<p>Duplicate points can cause infinite loops in Jarvis March. Always filter or handle duplicates before running the algorithm.</p></div>`;
+<p>Duplicate points can cause infinite loops in Jarvis March. Always filter or handle duplicates before running the algorithm.</p></div>
+<h4>What If We Removed Polar Angle Sorting?</h4>
+<div class="concept-box warn">
+<h5>Impact Analysis: Removing the Sort Step from Graham Scan</h5>
+<p>The polar angle sort is not merely an optimization — it is the <b>structural backbone</b> of Graham Scan. Without it, the stack-based processing would visit points in an arbitrary, unordered sequence. Instead of sweeping counter-clockwise around the boundary, the algorithm would randomly jump between distant points.</p>
+<p>The result? The "hull" would be a <b>tangled, self-intersecting polygon</b> — edges would criss-cross chaotically because the left-turn/right-turn checks only work when consecutive points follow angular order. The cross product test assumes the previous edge direction is monotonically rotating; without sorted input, this assumption breaks entirely.</p>
+<p style="color:var(--green);font-weight:600;margin-top:8px">Conclusion: The O(n log n) sorting cost is not optional. It transforms a random point cloud into an ordered sweep sequence that the O(n) stack pass can correctly process.</p>
+</div>`;
 
 $('eduCLO').innerHTML=`
 <h4>Interactive Complexity Analysis</h4>
