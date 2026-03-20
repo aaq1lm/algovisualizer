@@ -488,12 +488,15 @@ function renderPoints(pts,highlights,hullSet,anchorIdx,candidateIdx,indices,reje
     const t=svgEl('text',{x:cx,y:textY,fill:'#fff','font-size':'10','text-anchor':'middle','font-family':'var(--mono)',opacity:'.8'});
     t.textContent=`P${i}(${p[0]},${p[1]})`;gL.appendChild(t);
     
-    // index badge
+    // inboard index
     if(indices && indices[i] != null) {
-      const bg = svgEl('circle', {cx: cx+14, cy: cy-14, r: 8, fill: 'var(--orange)', stroke: 'var(--bg)', 'stroke-width': 1.5});
-      const num = svgEl('text', {x: cx+14, y: cy-11, fill: '#111', 'font-size': '8', 'font-weight': '700', 'text-anchor': 'middle', 'font-family': 'var(--sans)'});
+      if(r < 8) c.setAttribute('r', 8); // Ensure it's big enough to fit text
+      c.style.r = ''; // clear transition target if any conflict
+      
+      const num = svgEl('text', {x: cx, y: cy+3, fill: '#fff', 'font-size': '8', 'font-weight': '700', 'text-anchor': 'middle', 'font-family': 'var(--sans)'});
+      num.style.pointerEvents = 'none';
       num.textContent = indices[i];
-      gL.appendChild(bg); gL.appendChild(num);
+      gL.appendChild(num);
     }
   });
 }
