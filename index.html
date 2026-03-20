@@ -444,7 +444,7 @@ function easeOutCubic(t){return 1-Math.pow(1-t,3)}
 function easeInOutQuad(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
 
 // ===== RENDER POINTS =====
-function renderPoints(pts,highlights,hullSet,anchorIdx,candidateIdx){
+function renderPoints(pts,highlights,hullSet,anchorIdx,candidateIdx,indices){
   const gP=$('pointsG'),gL=$('labelsG');gP.innerHTML='';gL.innerHTML='';
   hullSet=hullSet||new Set();
   const labelLocs=[];
@@ -481,12 +481,28 @@ function renderPoints(pts,highlights,hullSet,anchorIdx,candidateIdx){
     // label
     const t=svgEl('text',{x:cx,y:textY,fill:'#fff','font-size':'10','text-anchor':'middle','font-family':'var(--mono)',opacity:'.8'});
     t.textContent=`P${i}(${p[0]},${p[1]})`;gL.appendChild(t);
+    
+    // index badge
+    if(indices && indices[i] != null) {
+      const bg = svgEl('circle', {cx: cx+14, cy: cy-14, r: 8, fill: 'var(--orange)', stroke: 'var(--bg)', 'stroke-width': 1.5});
+      const num = svgEl('text', {x: cx+14, y: cy-11, fill: '#111', 'font-size': '8', 'font-weight': '700', 'text-anchor': 'middle', 'font-family': 'var(--sans)'});
+      num.textContent = indices[i];
+      gL.appendChild(bg); gL.appendChild(num);
+    }
   });
 }
 
 // ===== RENDER EDGES =====
-function renderEdges(pts,edgeList,partial){
+function renderEdges(pts,edgeList,partial,ghostEdges){
   const g=$('edgesG');g.innerHTML='';
+  if(ghostEdges){
+    ghostEdges.forEach(e=>{
+      const[i,j]=e;
+      const x1=tx(pts[i][0]),y1=ty(pts[i][1]),x2=tx(pts[j][0]),y2=ty(pts[j][1]);
+      const l=svgEl('line',{x1,y1,x2,y2,stroke:'var(--muted)','stroke-width':1.5,opacity:'.3','stroke-dasharray':'4,4'});
+      g.appendChild(l);
+    });
+  }
   edgeList.forEach((e,idx)=>{
     const[i,j]=e;
     const x1=tx(pts[i][0]),y1=ty(pts[i][1]),x2=tx(pts[j][0]),y2=ty(pts[j][1]);
@@ -596,15 +612,19 @@ function grahamSteps(pts){
     return cmp;
   });
   const sorted=[anchor,...others];
+  const indices = {};
+  sorted.forEach((ptIdx, i) => indices[ptIdx] = i);
+  const ghostEdges = [];
+  
   steps.push({type:'sort',desc:`Finished sorting! The ${n-1} remaining points are now ordered by their polar angle (counter-clockwise sweep) relative to anchor P${anchor}.`,line:2,
     highlights:[],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],sortedOrder:[...sorted],
-    stats:{...stats}, result: 'Array Ordered'});
+    stats:{...stats}, result: 'Array Ordered', indices: {...indices}, ghostEdges: [...ghostEdges]});
   
   const stack=[sorted[0],sorted[1]];
   stats.push += 2;
   steps.push({type:'init-stack',desc:`Initialize our "Hull Stack" with anchor P${sorted[0]} and the first sorted point P${sorted[1]}. Two points inherently form a valid straight convex edge!`,line:3,
     highlights:[],hullSet:new Set(stack),anchor,candidate:sorted[1],edges:[[sorted[0],sorted[1]]],stack:[...stack],
-    stats:{...stats}, result: 'Stack Ready'});
+    stats:{...stats}, result: 'Stack Ready', indices: {...indices}, ghostEdges: [...ghostEdges]});
 
   for(let i=2;i<sorted.length;i++){
     const pi=sorted[i];
@@ -612,7 +632,8 @@ function grahamSteps(pts){
       highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
       edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
       arcCenter:stack[stack.length-1],arcFrom:stack[stack.length-2],arcTo:pi, result: 'Analyzing',
-      arcLabels:['current edge', 'previous', 'testing point'], sweepText:'Turn?'});
+      arcLabels:['current edge', 'previous', 'testing point'], sweepText:'Turn?',
+      indices: {...indices}, ghostEdges: [...ghostEdges]});
 
     while(stack.length>1){
       const top=stack[stack.length-1],sec=stack[stack.length-2];
@@ -621,27 +642,32 @@ function grahamSteps(pts){
       if(cp<=0){
         // pop — right turn or collinear
         const popped=stack.pop();stats.pop++;
+        ghostEdges.push([sec, top]); // Track the rejected edge!
         steps.push({type:'pop',desc:`Calculated Cross Product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)}. Since it is ≤ 0, this forms a RIGHT TURN (concave curve). We must BACKTRACK and remove P${top} from the hull!`,line:6,
           highlights:[top],hullSet:new Set(stack),anchor,candidate:pi,
           edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-          arcCenter:top,arcFrom:sec,arcTo:pi, result: 'Removed (Concave)', arcLabels:['current edge','previous','testing point'], sweepText:'Right Turn ✗'});
+          arcCenter:top,arcFrom:sec,arcTo:pi, result: 'Removed (Concave)', arcLabels:['current edge','previous','testing point'], sweepText:'Right Turn ✗',
+          indices: {...indices}, ghostEdges: [...ghostEdges]});
       } else {
         steps.push({type:'keep',desc:`Calculated Cross Product (P${sec}→P${top}→P${pi}) = ${cp.toFixed(1)}. Since it is > 0, this forms a LEFT TURN (valid convex curve). P${top} is safely kept as a corner on our boundary.`,line:5,
           highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
           edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats},
-          arcCenter:top,arcFrom:sec,arcTo:pi, result: 'Kept (Convex)', arcLabels:['current edge','previous','testing point'], sweepText:'Left Turn ✓'});
+          arcCenter:top,arcFrom:sec,arcTo:pi, result: 'Kept (Convex)', arcLabels:['current edge','previous','testing point'], sweepText:'Left Turn ✓',
+          indices: {...indices}, ghostEdges: [...ghostEdges]});
         break;
       }
     }
     stack.push(pi);stats.push++;
     steps.push({type:'push',desc:`Push P${pi} onto the stack. It is currently a valid part of the our convex boundary (until later points potentially prove otherwise).`,line:7,
       highlights:[],hullSet:new Set(stack),anchor,candidate:pi,
-      edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats}, result: 'Pushed'});
+      edges:stack.slice(0,-1).map((s,j)=>[s,stack[j+1]]),stack:[...stack],stats:{...stats}, result: 'Pushed',
+      indices: {...indices}, ghostEdges: [...ghostEdges]});
   }
   // close hull
   const finalEdges=stack.map((s,j)=>[s,stack[(j+1)%stack.length]]);
   steps.push({type:'done',desc:`Convex hull complete! Final stack array holds our ${stack.length} outer boundary points.`,line:8,
-    highlights:[],hullSet:new Set(stack),anchor,candidate:null,edges:finalEdges,stack:[...stack],stats:{...stats}, result: 'Done'});
+    highlights:[],hullSet:new Set(stack),anchor,candidate:null,edges:finalEdges,stack:[...stack],stats:{...stats}, result: 'Done',
+    indices: {...indices}, ghostEdges: [...ghostEdges]});
   return steps;
 }
 
@@ -912,8 +938,8 @@ function applyStep(idx){
     }
   }
   
-  renderPoints(S.points,st.highlights,st.hullSet,st.anchor,st.candidate);
-  renderEdges(S.points,st.edges,st.type!=='done');
+  renderPoints(S.points,st.highlights,st.hullSet,st.anchor,st.candidate,st.indices);
+  renderEdges(S.points,st.edges,st.type!=='done',st.ghostEdges);
   if(st.arcCenter!=null)renderArc(S.points,st.arcCenter,st.arcFrom,st.arcTo,st.arcLabels,st.sweepText);
   else $('arcsG').innerHTML='';
   renderStats(st.stats);
