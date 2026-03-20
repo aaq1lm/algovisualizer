@@ -493,7 +493,8 @@ function renderPoints(pts,highlights,hullSet,anchorIdx,candidateIdx,indices,reje
       if(r < 8) c.setAttribute('r', 8); // Ensure it's big enough to fit text
       c.style.r = ''; // clear transition target if any conflict
       
-      const num = svgEl('text', {x: cx, y: cy+3, fill: '#fff', 'font-size': '8', 'font-weight': '700', 'text-anchor': 'middle', 'font-family': 'var(--sans)'});
+      const txtColor = color === 'var(--accent)' ? 'var(--bg)' : '#fff';
+      const num = svgEl('text', {x: cx, y: cy+3, fill: txtColor, 'font-size': '8', 'font-weight': '700', 'text-anchor': 'middle', 'font-family': 'var(--sans)'});
       num.style.pointerEvents = 'none';
       num.textContent = indices[i];
       gL.appendChild(num);
