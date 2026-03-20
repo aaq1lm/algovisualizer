@@ -957,43 +957,128 @@ $('eduConcepts').innerHTML=`
 <p>Duplicate points can cause infinite loops in Jarvis March. Always filter or handle duplicates before running the algorithm.</p></div>`;
 
 $('eduCLO').innerHTML=`
-<h4>CLO-1: Complexity Comparison</h4>
-<div class="concept-box"><h5>Graham Scan: O(n log n)</h5>
-<p>Dominated by the sorting step. The stack processing is O(n) since each point is pushed and popped at most once. Total: O(n log n) + O(n) = <b>O(n log n)</b>.</p></div>
-<div class="concept-box"><h5>Jarvis March: O(nh)</h5>
-<p>For each of the <b>h</b> hull vertices, we scan all <b>n</b> points. When h is small (e.g., h = 3), this is nearly O(n). When h ≈ n (all points on hull), this degrades to <b>O(n²)</b>.</p></div>
-<svg class="clo-chart" viewBox="0 0 400 140">
-<rect width="400" height="140" fill="var(--panel)" rx="6"/>
-<text x="200" y="16" text-anchor="middle" fill="var(--muted)" font-size="10">Complexity Growth: n log n vs nh</text>
-<g transform="translate(40,25)">
-<line x1="0" y1="100" x2="320" y2="100" stroke="var(--border)" stroke-width="1"/>
-<line x1="0" y1="0" x2="0" y2="100" stroke="var(--border)" stroke-width="1"/>
-<text x="160" y="115" text-anchor="middle" fill="var(--muted)" font-size="9">n (input size)</text>
-<text x="-8" y="50" text-anchor="middle" fill="var(--muted)" font-size="9" transform="rotate(-90,-8,50)">time</text>
-${(()=>{let graham='',jarvis='',jarvisBest='';for(let i=0;i<=32;i++){const n=i*10;const x=i*10;
-const yG=100-Math.min(100,(n?n*Math.log2(n):0)/50);
-const yJ=100-Math.min(100,n*n/500);
-const yJB=100-Math.min(100,n*3/5);
-graham+=`${i?'L':'M'}${x},${yG} `;jarvis+=`${i?'L':'M'}${x},${yJ} `;jarvisBest+=`${i?'L':'M'}${x},${yJB} `;}
-return`<path d="${graham}" fill="none" stroke="var(--accent)" stroke-width="2" opacity=".9"/>
-<path d="${jarvis}" fill="none" stroke="var(--red)" stroke-width="2" opacity=".7" stroke-dasharray="4,3"/>
-<path d="${jarvisBest}" fill="none" stroke="var(--green)" stroke-width="1.5" opacity=".6" stroke-dasharray="2,2"/>
-<text x="240" y="20" fill="var(--accent)" font-size="8">Graham O(n log n)</text>
-<text x="240" y="45" fill="var(--red)" font-size="8">Jarvis O(n²) worst</text>
-<text x="240" y="80" fill="var(--green)" font-size="8">Jarvis O(n) best</text>`})()}
-</g></svg>
-<h4>CLO-2: Key Subroutine Analysis</h4>
-<p><b>Graham Scan — Polar Angle Sort:</b> Uses a comparison-based sort (typically merge sort) to order points by angle. This O(n log n) step is what determines the overall complexity. The sort enables the linear-time stack scan.</p>
-<p><b>Jarvis March — Minimum Angle Search:</b> At each hull vertex, linearly scans all n points to find the one making the smallest counter-clockwise angle. This O(n) search is repeated h times.</p>
-<h4>CLO-3: Paradigm Comparison</h4>
-<div class="concept-box"><h5>Graham Scan: Sort-Then-Scan + Stack</h5>
-<p>Preprocesses with a global sort, then makes a single pass using a stack to enforce convexity. The stack acts as a "memory" of tentative hull vertices — non-convex points are efficiently removed by popping.</p></div>
-<div class="concept-box"><h5>Jarvis March: Greedy Gift Wrapping</h5>
-<p>Builds the hull incrementally by always choosing the "best" next vertex (most counter-clockwise). No preprocessing needed — each step is locally optimal. Simple but potentially expensive when many points lie on the hull.</p></div>
-<div class="concept-box"><h5>When to Use Which?</h5>
-<p>• <b>Graham Scan</b>: Best general-purpose choice. Always O(n log n) regardless of output size.<br>
-• <b>Jarvis March</b>: Better when h ≪ n (few hull points). Output-sensitive — adapts to the answer's complexity.<br>
-• <b>Rule of thumb</b>: If you expect most points to be interior → Jarvis. If unsure → Graham.</p></div>`;
+$('eduCLO').innerHTML=`
+<h4>Interactive Complexity Analysis</h4>
+<p>Compare the real-time performance curves of Graham Scan vs Jarvis March by tweaking the input parameters below. Watch how the output-sensitive nature of Jarvis March behaves!</p>
+
+<div class="card" style="padding:16px; margin: 12px 0; background: var(--panel);">
+  <div style="display:flex; flex-direction:column; gap:16px; margin-bottom: 24px;">
+    <div>
+      <div style="display:flex; justify-content:space-between; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px;">
+        <span>Total Points (<b>n</b>): <span id="valN" style="color:var(--accent);font-weight:600;font-size:1rem;margin-left:6px;">50</span></span>
+      </div>
+      <input type="range" id="sliderN" min="10" max="1000" step="10" value="50" style="width:100%; accent-color:var(--accent)">
+    </div>
+    <div>
+      <div style="display:flex; justify-content:space-between; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; align-items:center;">
+        <span>Hull Vertices (<b>h</b>): <span id="valH" style="color:var(--green);font-weight:600;font-size:1rem;margin-left:6px;">10</span></span>
+        <span style="font-size:0.65rem; font-style:italic; border:1px solid var(--border); padding:2px 6px; background:var(--card)">Jarvis is sensitive to h</span>
+      </div>
+      <input type="range" id="sliderH" min="3" max="1000" step="1" value="10" style="width:100%; accent-color:var(--green)">
+    </div>
+  </div>
+  
+  <div style="display:flex; justify-content:space-around; text-align:center; font-family: var(--mono); margin-bottom: 20px; background: var(--card); padding: 12px; border: 1px solid var(--border);">
+    <div style="flex:1; border-right:1px solid var(--border)"><div style="font-size:0.7rem; color:var(--muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:1px">Graham Ops</div><div id="opsGraham" style="color:var(--accent); font-size:1.4rem; font-weight:600">0</div></div>
+    <div style="flex:1"><div style="font-size:0.7rem; color:var(--muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:1px">Jarvis Ops</div><div id="opsJarvis" style="color:var(--green); font-size:1.4rem; font-weight:600">0</div></div>
+  </div>
+
+  <svg id="complexitySvg" class="clo-chart" viewBox="0 0 400 160" style="height:190px; margin:0">
+    <rect width="400" height="160" fill="var(--card)" rx="2" stroke="var(--border)"/>
+    <text x="200" y="20" text-anchor="middle" fill="var(--muted)" font-size="10" letter-spacing="1">PROJECTED OPERATIONS VS N</text>
+    <g transform="translate(45,30)">
+      <!-- axes -->
+      <line x1="0" y1="110" x2="330" y2="110" stroke="var(--border)" stroke-width="1.5"/>
+      <line x1="0" y1="0" x2="0" y2="110" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="165" y="125" text-anchor="middle" fill="var(--muted)" font-size="9">Input Size (n)</text>
+      <text x="-12" y="55" text-anchor="middle" fill="var(--muted)" font-size="9" transform="rotate(-90,-12,55)">Operations</text>
+      
+      <path id="pathGraham" fill="none" stroke="var(--accent)" stroke-width="2.5" opacity=".9"/>
+      <path id="pathJarvis" fill="none" stroke="var(--green)" stroke-width="2.5" opacity=".9"/>
+      
+      <!-- Current point markers -->
+      <circle id="ptGraham" cx="0" cy="0" r="5" fill="var(--bg)" stroke="var(--accent)" stroke-width="2.5"/>
+      <circle id="ptJarvis" cx="0" cy="0" r="5" fill="var(--bg)" stroke="var(--green)" stroke-width="2.5"/>
+      
+      <text x="240" y="25" fill="var(--accent)" font-size="9" font-weight="600">Graham O(n log n)</text>
+      <text x="240" y="45" fill="var(--green)" font-size="9" font-weight="600">Jarvis O(nh)</text>
+    </g>
+  </svg>
+</div>
+
+<div class="concept-box" style="margin-top:16px;">
+  <h5 style="margin-bottom:8px">The Verdict</h5>
+  <p id="complexityVerdict" style="font-size:0.85rem">Experiment with the sliders to see exactly when one algorithm computationally dominates the other!</p>
+</div>
+`;
+setTimeout(initComplexityInteractive, 0);
+}
+
+function initComplexityInteractive() {
+  const sN=$('sliderN'), sH=$('sliderH');
+  const vN=$('valN'), vH=$('valH');
+  const oG=$('opsGraham'), oJ=$('opsJarvis');
+  const pG=$('pathGraham'), pJ=$('pathJarvis');
+  const ptG=$('ptGraham'), ptJ=$('ptJarvis');
+  const verdict=$('complexityVerdict');
+
+  function update() {
+    let n = parseInt(sN.value);
+    // h naturally cannot exceed n
+    if(parseInt(sH.value) > n) sH.value = n;
+    sH.max = n;
+    let h = parseInt(sH.value);
+    
+    vN.textContent = n; vH.textContent = h;
+    
+    // Calculate conceptual operations 
+    // Graham: Sort is roughly C * n log2 n, stack logic is bounded by 2n
+    let opsG = Math.round(n * Math.log2(n) + 2*n);
+    // Jarvis: For h vertices, scans exactly n points
+    let opsJ = Math.round(n * h);
+    
+    oG.textContent = opsG.toLocaleString(); oJ.textContent = opsJ.toLocaleString();
+    
+    if(opsJ < opsG * 0.8) {
+      oJ.style.color = 'var(--green)'; oG.style.color = 'var(--muted)';
+      verdict.innerHTML = `At an output of <b>${h}</b> hull vertices, <b>Jarvis March</b> acts like O(n). Because the shape is so simple, its output-sensitive property allows it to skip the massive upfront cost of sorting all ${n} points!`;
+    } else if (opsJ > opsG * 1.2) {
+      oJ.style.color = 'var(--red)'; oG.style.color = 'var(--accent)';
+      verdict.innerHTML = `As hull complexity reaches <b>${h}</b> vertices, <b>Jarvis March</b> rapidly degrades towards O(n²) and gets overwhelmed by its repetitive full-array sweeps. <b>Graham Scan</b> is the clear winner here.`;
+    } else {
+      oJ.style.color = 'var(--orange)'; oG.style.color = 'var(--orange)';
+      verdict.innerHTML = `You've found the <b>Crossover Point!</b> The heavy upfront cost of Graham's sort is roughly equal to the repetitive sweeping strain of Jarvis March matching its ${h} vertices.`;
+    }
+    
+    const maxN = 1000;
+    const maxOps = Math.max( maxN * Math.log2(maxN) + 2*maxN, maxN * h );
+    
+    let dG = '', dJ = '';
+    const points = 40;
+    for(let i=0; i<=points; i++) {
+        let curN = (maxN / points) * i;
+        if(curN<=1) curN=1;
+        
+        let cg = curN * Math.log2(curN) + 2*curN;
+        let cj = curN * h;
+        
+        let px = (i / points) * 320;
+        let pyG = 110 - (cg / maxOps) * 100;
+        let pyJ = 110 - (cj / maxOps) * 100;
+        
+        dG += `${i===0?'M':'L'}${px.toFixed(1)},${pyG.toFixed(1)} `;
+        dJ += `${i===0?'M':'L'}${px.toFixed(1)},${pyJ.toFixed(1)} `;
+        
+        if(Math.abs(curN - n) <= (maxN/points)/2) {
+            ptG.setAttribute('cx', px.toFixed(1)); ptG.setAttribute('cy', pyG.toFixed(1));
+            ptJ.setAttribute('cx', px.toFixed(1)); ptJ.setAttribute('cy', pyJ.toFixed(1));
+        }
+    }
+    pG.setAttribute('d', dG); pJ.setAttribute('d', dJ);
+  }
+  
+  sN.addEventListener('input', update); sH.addEventListener('input', update);
+  update();
 }
 
 // ===== INIT =====
