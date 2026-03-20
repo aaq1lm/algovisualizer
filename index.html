@@ -130,9 +130,24 @@ textarea:focus{border-color:var(--accent)}
 .clo-chart{width:100%;height:160px;margin:12px 0}
 
 /* STACK VIZ */
-.stack-viz{display:flex;flex-direction:column-reverse;gap:2px;min-height:40px;padding:8px;background:var(--card);border:1px solid var(--border);border-radius:0;margin-top:8px}
-.stack-item{padding:5px 12px;background:var(--panel);border:1px solid var(--border);border-radius:0;font-size:.72rem;font-family:var(--mono);color:var(--accent);animation:stackIn .2s ease;letter-spacing:.5px}
-@keyframes stackIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.stack-viz{display:flex;flex-direction:column-reverse;gap:0;min-height:60px;padding:12px 8px 8px;background:var(--card);border:1px solid var(--border);border-radius:0;margin-top:8px;position:relative;overflow:hidden}
+.stack-box{position:relative;padding:8px 14px;background:var(--panel);border:1px solid var(--border);border-bottom:2px solid rgba(78,201,139,.3);font-size:.78rem;font-family:var(--mono);color:var(--accent);letter-spacing:.5px;text-align:center;transform-origin:center bottom}
+.stack-box.is-top{background:linear-gradient(135deg,var(--panel),rgba(78,201,139,.12));border-color:var(--green);color:var(--green)}
+.stack-box .top-badge{position:absolute;top:-1px;right:6px;font-size:.55rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--green);opacity:.8}
+.stack-box.push-anim{animation:stackPush .5s cubic-bezier(.22,1.5,.36,1) forwards}
+.stack-box.pop-anim{animation:stackPop .4s cubic-bezier(.55,0,1,.45) forwards}
+@keyframes stackPush{
+  0%{opacity:0;transform:translateY(-40px) scale(.9) rotate(-3deg)}
+  50%{opacity:1;transform:translateY(4px) scale(1.03) rotate(1deg)}
+  70%{transform:translateY(-2px) scale(.99) rotate(-.5deg)}
+  100%{opacity:1;transform:translateY(0) scale(1) rotate(0)}
+}
+@keyframes stackPop{
+  0%{opacity:1;transform:translateY(0) scale(1) rotate(0)}
+  40%{transform:translateY(-20px) scale(1.1) rotate(4deg);opacity:.8}
+  100%{transform:translateY(-60px) scale(.7) rotate(12deg);opacity:0}
+}
+.stack-empty{color:var(--muted);font-size:.72rem;text-align:center;padding:8px;opacity:.6;font-style:italic}
 
 /* RESPONSIVE */
 @media(max-width:980px){.app{flex-direction:column}.left{width:100%;min-width:0}}
@@ -711,13 +726,64 @@ function highlightLine(n){
 }
 
 // ===== STACK VIZ =====
+let prevStackState = [];
 function renderStack(stack,pts){
-  const el=$('stackViz');el.innerHTML='';
-  if(!stack||!stack.length){el.innerHTML='<span style="color:var(--muted);font-size:.72rem">Empty</span>';return}
-  stack.forEach(i=>{
-    const d=document.createElement('div');d.className='stack-item';
-    d.textContent=`P${i}(${pts[i]})`;el.appendChild(d);
+  const el=$('stackViz');
+  if(!stack||!stack.length){
+    // Animate out remaining items then show empty
+    const existing = el.querySelectorAll('.stack-box');
+    existing.forEach(box => {
+      box.classList.remove('push-anim');
+      box.classList.add('pop-anim');
+    });
+    setTimeout(()=>{
+      el.innerHTML='<div class="stack-empty">Stack is empty</div>';
+    }, existing.length ? 400 : 0);
+    prevStackState = [];
+    return;
+  }
+  
+  // Detect what changed
+  const prevLen = prevStackState.length;
+  const newLen = stack.length;
+  const wasPush = newLen > prevLen;
+  const wasPop = newLen < prevLen;
+  
+  el.innerHTML = '';
+  
+  stack.forEach((idx, pos) => {
+    const box = document.createElement('div');
+    box.className = 'stack-box';
+    const isTop = (pos === stack.length - 1);
+    
+    if(isTop) {
+      box.classList.add('is-top');
+      box.innerHTML = `<span class="top-badge">TOP</span>P${idx}(${pts[idx]})`;
+    } else {
+      box.textContent = `P${idx}(${pts[idx]})`;
+    }
+    
+    // Animate only the changed element
+    if(wasPush && pos === stack.length - 1) {
+      box.classList.add('push-anim');
+    }
+    
+    el.appendChild(box);
   });
+  
+  // If a pop happened, briefly show the popped item flying away
+  if(wasPop && prevLen > 0) {
+    const poppedIdx = prevStackState[prevLen - 1];
+    const ghost = document.createElement('div');
+    ghost.className = 'stack-box pop-anim';
+    ghost.style.color = 'var(--red)';
+    ghost.style.borderColor = 'var(--red)';
+    ghost.textContent = `P${poppedIdx}(${pts[poppedIdx]})`;
+    el.appendChild(ghost);
+    setTimeout(() => { if(ghost.parentNode) ghost.remove(); }, 450);
+  }
+  
+  prevStackState = [...stack];
 }
 
 // ===== STATS =====
@@ -833,6 +899,7 @@ function pause(){S.playing=false;clearTimeout(S.timer);setStatus('Paused')}
 function reset(){
   pause();S.steps=[];S.stepIdx=-1;
   S.stats={cross:0,comp:0,push:0,pop:0};
+  prevStackState=[];
   $('pointsG').innerHTML='';$('edgesG').innerHTML='';$('arcsG').innerHTML='';$('labelsG').innerHTML='';
   $('historyBody').innerHTML='';$('pseudoWrap').innerHTML='';
   $('stackViz').innerHTML='<span style="color:var(--muted);font-size:.72rem">Empty</span>';
