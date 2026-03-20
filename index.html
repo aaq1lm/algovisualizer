@@ -149,6 +149,19 @@ textarea:focus{border-color:var(--accent)}
 }
 .stack-empty{color:var(--muted);font-size:.72rem;text-align:center;padding:8px;opacity:.6;font-style:italic}
 
+/* ALGO BANNER */
+.algo-banner{display:none;text-align:center;padding:10px 16px;font-family:var(--serif);font-size:.95rem;letter-spacing:1px;font-weight:400;border-bottom:1px solid var(--border);background:var(--card);transition:all .4s ease;position:relative;overflow:hidden}
+.algo-banner.visible{display:block}
+.algo-banner .algo-name{font-weight:600;font-size:1.1rem;display:block}
+.algo-banner .algo-paradigm{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-top:2px}
+.algo-banner.graham{border-bottom-color:var(--accent)}
+.algo-banner.graham .algo-name{color:var(--accent)}
+.algo-banner.jarvis{border-bottom-color:var(--green)}
+.algo-banner.jarvis .algo-name{color:var(--green)}
+.algo-banner.transition{background:linear-gradient(135deg,rgba(78,201,139,.08),rgba(232,228,220,.08));border-bottom-color:var(--orange)}
+.algo-banner.transition .algo-name{color:var(--orange)}
+@keyframes bannerSlide{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:translateY(0)}}
+
 /* RESPONSIVE */
 @media(max-width:980px){.app{flex-direction:column}.left{width:100%;min-width:0}}
 
@@ -237,6 +250,7 @@ textarea:focus{border-color:var(--accent)}
 <!-- RIGHT PANEL -->
 <div class="right">
 
+<div id="algoBanner" class="algo-banner"></div>
 <div class="viz-wrap">
 <svg id="vizSvg" class="viz-svg" viewBox="0 0 700 500" xmlns="http://www.w3.org/2000/svg" onclick="handleSvgClick(event)" style="cursor:crosshair">
 <defs>
@@ -835,17 +849,39 @@ function buildSteps(){
   if(S.points.length<3){$('explainBox').innerHTML='<b style="color:var(--red)">Need at least 3 points.</b>';return}
   S.algo=getAlgo();
   if(S.algo==='both'){
-    const gSteps=grahamSteps(S.points).map(s=>({...s,desc:`<b style="color:var(--accent);letter-spacing:.5px">[GRAHAM SCAN]</b> ${s.desc}`}));
-    const jSteps=jarvisSteps(S.points).map(s=>({...s,desc:`<b style="color:var(--green);letter-spacing:.5px">[JARVIS MARCH]</b> ${s.desc}`}));
-    S.steps=[...gSteps,...jSteps];
+    const gSteps=grahamSteps(S.points).map(s=>({...s,algo:'graham',desc:`<b style="color:var(--accent);letter-spacing:.5px">[GRAHAM SCAN]</b> ${s.desc}`}));
+    const jSteps=jarvisSteps(S.points).map(s=>({...s,algo:'jarvis',desc:`<b style="color:var(--green);letter-spacing:.5px">[JARVIS MARCH]</b> ${s.desc}`}));
+    const transitionStep = {
+      type:'transition', algo:'transition',
+      desc:`<div style="text-align:center;padding:12px 0">
+        <div style="font-family:var(--serif);font-size:1.1rem;color:var(--orange);margin-bottom:8px">Algorithm Transition</div>
+        <div style="font-size:.82rem;color:var(--muted);line-height:1.6">Graham Scan completed in <b>${gSteps.length}</b> steps using the <b>Sort + Stack</b> paradigm.<br>Now running <b style="color:var(--green)">Jarvis March</b> on the same point set using the <b>Greedy Gift-Wrapping</b> paradigm.</div>
+        <div style="margin-top:10px;font-size:.72rem;color:var(--muted);font-style:italic">The canvas will reset. Watch how a completely different strategy finds the exact same hull.</div>
+      </div>`,
+      line:null, highlights:[], hullSet:new Set(), anchor:null, candidate:null,
+      edges:[], stack:[], stats:{cross:0,comp:0,push:0,pop:0}, result:'Switching'
+    };
+    S.steps=[...gSteps, transitionStep, ...jSteps];
+    S.grahamStepCount = gSteps.length;
     renderPseudo('graham');
   }else{
     S.steps=S.algo==='graham'?grahamSteps(S.points):jarvisSteps(S.points);
+    S.steps.forEach(s => s.algo = S.algo);
     renderPseudo(S.algo);
   }
   $('stepCounter').textContent=`Step 0 / ${S.steps.length}`;
   setStatus('Ready');
   $('explainBox').innerHTML='Steps built! Click <b>Step</b> or <b>Play</b> to begin.';
+  // Show banner if both mode
+  const banner = $('algoBanner');
+  if(S.algo==='both'){
+    banner.className='algo-banner visible graham';
+    banner.innerHTML='<span class="algo-name">Graham Scan</span><span class="algo-paradigm">Sort + Stack Paradigm</span>';
+    banner.style.animation='bannerSlide .4s ease';
+  } else {
+    banner.className='algo-banner';
+    banner.innerHTML='';
+  }
 }
 
 // ===== APPLY STEP =====
@@ -853,6 +889,29 @@ function applyStep(idx){
   if(idx<0||idx>=S.steps.length)return;
   S.stepIdx=idx;
   const st=S.steps[idx];
+  
+  // Update algo banner in Compare Both mode
+  if(S.algo==='both' && st.algo) {
+    const banner = $('algoBanner');
+    const prevAlgo = idx > 0 ? S.steps[idx-1].algo : null;
+    if(st.algo !== prevAlgo) {
+      banner.style.animation='none';
+      void banner.offsetHeight; // reflow
+      banner.style.animation='bannerSlide .4s ease';
+      if(st.algo==='graham'){
+        banner.className='algo-banner visible graham';
+        banner.innerHTML='<span class="algo-name">Graham Scan</span><span class="algo-paradigm">Sort + Stack Paradigm</span>';
+      } else if(st.algo==='jarvis'){
+        banner.className='algo-banner visible jarvis';
+        banner.innerHTML='<span class="algo-name">Jarvis March</span><span class="algo-paradigm">Greedy Gift-Wrapping Paradigm</span>';
+        renderPseudo('jarvis');
+      } else if(st.algo==='transition'){
+        banner.className='algo-banner visible transition';
+        banner.innerHTML='<span class="algo-name">Switching Algorithms...</span><span class="algo-paradigm">Preparing Jarvis March</span>';
+      }
+    }
+  }
+  
   renderPoints(S.points,st.highlights,st.hullSet,st.anchor,st.candidate);
   renderEdges(S.points,st.edges,st.type!=='done');
   if(st.arcCenter!=null)renderArc(S.points,st.arcCenter,st.arcFrom,st.arcTo,st.arcLabels,st.sweepText);
@@ -915,6 +974,7 @@ function reset(){
   $('stackViz').innerHTML='<span style="color:var(--muted);font-size:.72rem">Empty</span>';
   $('explainBox').innerHTML='Load a preset or enter points, then click <b>Build Steps</b>.';
   $('stepCounter').textContent='Step 0 / 0';
+  $('algoBanner').className='algo-banner';$('algoBanner').innerHTML='';
   renderStats({cross:0,comp:0,push:0,pop:0});setStatus('Idle');
   if(S.points.length){calcTransform(S.points);drawGrid();renderPoints(S.points,[])}
 }
