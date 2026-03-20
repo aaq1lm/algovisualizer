@@ -467,7 +467,7 @@ function renderEdges(pts,edgeList,partial){
 }
 
 // ===== RENDER ANGLE ARC =====
-function renderArc(pts,centerIdx,fromIdx,toIdx){
+function renderArc(pts,centerIdx,fromIdx,toIdx,labels,sweepText){
   const g=$('arcsG');g.innerHTML='';
   if(centerIdx==null||fromIdx==null||toIdx==null)return;
   
