@@ -126,6 +126,26 @@ textarea:focus{border-color:var(--accent)}
 .concept-box h5{color:var(--accent);font-size:.78rem;margin-bottom:4px;font-family:var(--serif);font-weight:400;letter-spacing:.5px}
 .concept-box.warn h5{color:var(--orange)}
 
+/* ALGO OVERVIEW CARD */
+.overview-details{background:var(--card);border:1px solid var(--border);margin-top:8px}
+.overview-details summary{padding:12px 16px;font-family:var(--serif);font-size:.85rem;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none;list-style:none;transition:background .15s}
+.overview-details summary::-webkit-details-marker{display:none}
+.overview-details summary::before{content:'▶';font-size:.55rem;color:var(--muted);transition:transform .25s;display:inline-block}
+.overview-details[open] summary::before{transform:rotate(90deg)}
+.overview-details summary:hover{background:var(--panel)}
+.overview-details .overview-content{padding:14px 18px;border-top:1px solid var(--border)}
+.overview-content .ov-section{margin-bottom:14px}
+.overview-content .ov-section:last-child{margin-bottom:0}
+.overview-content .ov-title{font-family:var(--mono);font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--accent);margin-bottom:6px}
+.overview-content .ov-text{font-size:.78rem;line-height:1.7;color:var(--muted)}
+.overview-content .ov-text em{color:var(--text);font-style:italic}
+.overview-content .ov-steps{list-style:none;counter-reset:ov-step;padding:0}
+.overview-content .ov-steps li{counter-increment:ov-step;font-size:.76rem;line-height:1.6;color:var(--muted);padding:3px 0 3px 22px;position:relative}
+.overview-content .ov-steps li::before{content:counter(ov-step) '.';position:absolute;left:0;color:var(--accent);font-weight:600;font-family:var(--mono);font-size:.7rem}
+.overview-content .ov-complexity{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.72rem;font-family:var(--mono)}
+.overview-content .ov-complexity span{color:var(--muted)}
+.overview-content .ov-complexity b{color:var(--accent);font-weight:600}
+
 /* COMPLEXITY CHART */
 .complexity-chart{width:100%;height:160px;margin:12px 0}
 
@@ -245,6 +265,13 @@ textarea:focus{border-color:var(--accent)}
   <span>Push: <span id="statPush" style="color:var(--green);font-weight:600">0</span></span>
   <span>Pop: <span id="statPop" style="color:var(--red);font-weight:600">0</span></span>
 </div>
+</div>
+
+<div class="card" id="overviewCard">
+<details class="overview-details" id="algoOverview" open>
+<summary>📘 <span id="overviewAlgoName">Graham Scan</span> — Overview</summary>
+<div class="overview-content" id="overviewContent"></div>
+</details>
 </div>
 
 </div>
@@ -579,11 +606,88 @@ function renderEdges(pts,edgeList,partial,ghostEdges){
 }
 
 // ===== RENDER ANGLE ARC =====
-function renderArc(pts,centerIdx,fromIdx,toIdx,labels,sweepText,radarWedge){
+function renderArc(pts,centerIdx,fromIdx,toIdx,labels,sweepText,radarWedge,showHorizontalRef,angleA,angleB){
   const g=$('arcsG');g.innerHTML='';
-  if(centerIdx==null||fromIdx==null||toIdx==null)return;
+  if(centerIdx==null)return;
   
   const cx=tx(pts[centerIdx][0]), cy=ty(pts[centerIdx][1]);
+  const R = 30;
+  const lg=$('labelsG');
+  
+  // Draw horizontal reference line from anchor during sorting
+  if(showHorizontalRef){
+    const hLen = 120;
+    const hline = svgEl('line',{x1:cx,y1:cy,x2:cx+hLen,y2:cy,stroke:'var(--green)','stroke-width':1.5,'stroke-dasharray':'6,3',opacity:'.6'});
+    g.appendChild(hline);
+    const hLabel = svgEl('text',{x:cx+hLen+6,y:cy+3,fill:'var(--green)','font-size':'8','text-anchor':'start','font-family':'var(--mono)',opacity:'.7'});
+    hLabel.textContent='0°';
+    lg.appendChild(hLabel);
+    
+    // Draw angle arc + label for point A (fromIdx)
+    if(fromIdx!=null && angleA!=null){
+      const fx=tx(pts[fromIdx][0]), fy=ty(pts[fromIdx][1]);
+      const v1x=fx-cx, v1y=fy-cy;
+      const len1=Math.sqrt(v1x*v1x+v1y*v1y);
+      if(len1>1e-6){
+        // line from anchor to point A
+        const lineA=svgEl('line',{x1:cx,y1:cy,x2:fx,y2:fy,stroke:'var(--cyan)','stroke-width':1.5,'stroke-dasharray':'4,4',opacity:'.5'});
+        g.appendChild(lineA);
+        // arc from horizontal to point A
+        const RA=Math.min(R, len1*0.6);
+        const hsx=cx+RA, hsy=cy; // start on horizontal
+        const aex=cx+(v1x/len1)*RA, aey=cy+(v1y/len1)*RA;
+        const angRad=Math.atan2(-(fy-cy),fx-cx);
+        const sweepA=angRad>=0?0:1; // CCW in screen coords
+        const arcA=svgEl('path',{
+          d:`M${hsx},${hsy} A${RA},${RA} 0 0,${sweepA} ${aex},${aey}`,
+          fill:'none',stroke:'var(--cyan)','stroke-width':1.5,opacity:'.7'
+        });
+        g.appendChild(arcA);
+        // angle label for A
+        const midAngA=angRad/2;
+        const lax=cx+(RA+14)*Math.cos(midAngA), lay=cy-(RA+14)*Math.sin(midAngA);
+        const txtA=svgEl('text',{x:lax,y:lay,dy:'.3em',fill:'var(--cyan)','font-size':'9','font-weight':'600','text-anchor':'middle','font-family':'var(--mono)'});
+        txtA.textContent=angleA+'°';
+        lg.appendChild(txtA);
+      }
+    }
+    // Draw angle arc + label for point B (toIdx)
+    if(toIdx!=null && angleB!=null){
+      const tx2v=tx(pts[toIdx][0]), ty2v=ty(pts[toIdx][1]);
+      const v2x=tx2v-cx, v2y=ty2v-cy;
+      const len2=Math.sqrt(v2x*v2x+v2y*v2y);
+      if(len2>1e-6){
+        const lineB=svgEl('line',{x1:cx,y1:cy,x2:tx2v,y2:ty2v,stroke:'var(--orange)','stroke-width':2,'stroke-dasharray':'4,4',opacity:'.6'});
+        g.appendChild(lineB);
+        const RB=Math.min(R+8, len2*0.6);
+        const hsx2=cx+RB, hsy2=cy;
+        const bex=cx+(v2x/len2)*RB, bey=cy+(v2y/len2)*RB;
+        const angRad2=Math.atan2(-(ty2v-cy),tx2v-cx);
+        const sweepB=angRad2>=0?0:1;
+        const arcB=svgEl('path',{
+          d:`M${hsx2},${hsy2} A${RB},${RB} 0 0,${sweepB} ${bex},${bey}`,
+          fill:'none',stroke:'var(--orange)','stroke-width':1.5,opacity:'.7'
+        });
+        g.appendChild(arcB);
+        const midAngB=angRad2/2;
+        const lbx=cx+(RB+14)*Math.cos(midAngB), lby=cy-(RB+14)*Math.sin(midAngB);
+        const txtB=svgEl('text',{x:lbx,y:lby,dy:'.3em',fill:'var(--orange)','font-size':'9','font-weight':'600','text-anchor':'middle','font-family':'var(--mono)'});
+        txtB.textContent=angleB+'°';
+        lg.appendChild(txtB);
+      }
+    }
+    // Sweep comparison text
+    if(sweepText){
+      const stxt=svgEl('text',{x:cx,y:cy+R+20,fill:'#5ab8c9','font-size':'10','font-weight':'600','text-anchor':'middle','font-family':'var(--mono)'});
+      stxt.textContent=sweepText;
+      lg.appendChild(stxt);
+    }
+    return; // Don't render the default arcs for sorting steps
+  }
+  
+  // Default arc rendering for non-sorting steps
+  if(fromIdx==null||toIdx==null)return;
+  
   const fx=tx(pts[fromIdx][0]),   fy=ty(pts[fromIdx][1]);
   const tx2=tx(pts[toIdx][0]),    ty2=ty(pts[toIdx][1]);
   
@@ -593,7 +697,6 @@ function renderArc(pts,centerIdx,fromIdx,toIdx,labels,sweepText,radarWedge){
   const len2 = Math.sqrt(v2x*v2x + v2y*v2y);
   if(len1<1e-6 || len2<1e-6) return;
   
-  const R = 30;
   const sx = cx + (v1x/len1)*R;
   const sy = cy + (v1y/len1)*R;
   const ex = cx + (v2x/len2)*R;
@@ -613,8 +716,6 @@ function renderArc(pts,centerIdx,fromIdx,toIdx,labels,sweepText,radarWedge){
     fill:'none',stroke:'#5ab8c9','stroke-width':2,opacity:'.9',filter:'url(#glow)'
   });
   g.appendChild(path);
-  
-  const lg=$('labelsG');
   
   if(sweepText) {
     const a1 = Math.atan2(-v1y, v1x), a2 = Math.atan2(-v2y, v2x);
@@ -677,11 +778,26 @@ function grahamSteps(pts){
     if(Math.abs(angA-angB)<1e-9) cmp = dist2(pts[anchor],pts[a])-dist2(pts[anchor],pts[b]);
     else cmp = angA-angB;
     
+    const angADeg = Math.round(polarAngle(pts[anchor],pts[a]) * 180 / Math.PI * 10) / 10;
+    const angBDeg = Math.round(polarAngle(pts[anchor],pts[b]) * 180 / Math.PI * 10) / 10;
+    const winner = cmp < 0 ? a : b;
+    const winAng = cmp < 0 ? angADeg : angBDeg;
+    const loseAng = cmp < 0 ? angBDeg : angADeg;
     const resStr = cmp < 0 ? `P${a} before P${b}` : cmp > 0 ? `P${b} before P${a}` : `Tie`;
-    steps.push({type:'compare-sort',desc:`Sorting: Comparing polar angles of P${a} vs P${b} from anchor P${anchor}. A smaller angle means the point is further "right" in our counter-clockwise sweep.`,line:2,
+    let sortDesc;
+    if (Math.abs(angADeg - angBDeg) < 0.01) {
+      sortDesc = `<b style="color:var(--accent)">Tie-breaking by distance:</b> P${a} and P${b} share the same polar angle (${angADeg}°) from the anchor. Look at the <span style="color:var(--green)">green horizontal line</span> — both points lie in the same direction! When angles are equal, we sort by distance so nearer points come first.`;
+    } else {
+      sortDesc = `<b style="color:var(--accent)">Comparing angles from the horizontal:</b> The <span style="color:var(--green)">green dashed line</span> is our 0° reference. `
+        + `The <span style="color:var(--cyan)">cyan arc</span> shows P${a} at <b>${angADeg}°</b>, `
+        + `the <span style="color:var(--orange)">orange arc</span> shows P${b} at <b>${angBDeg}°</b>. `
+        + `Since <b>${winAng}° < ${loseAng}°</b>, P${winner} is closer to the horizontal and comes <em>first</em> in our counter-clockwise sweep order.`;
+    }
+    steps.push({type:'compare-sort',desc:sortDesc,line:2,
       highlights:[a,b],hullSet:new Set([anchor]),anchor,candidate:null,edges:[],stack:[anchor],
       arcCenter:anchor,arcFrom:a,arcTo:b,stats:{...stats}, result: resStr,
-      arcLabels:['sorting from', 'angle A', 'angle B'], sweepText: cmp < 0 ? 'A < B' : cmp > 0 ? 'A > B' : 'Equal'});
+      showHorizontalRef:true, angleA:angADeg, angleB:angBDeg,
+      sweepText: cmp < 0 ? `${angADeg}° < ${angBDeg}°` : cmp > 0 ? `${angADeg}° > ${angBDeg}°` : 'Equal'});
     
     return cmp;
   });
@@ -849,6 +965,78 @@ jarvis:[
   {c:'  return hull', t:'The perimeter is complete. Return the ordered list of boundary points.'}
 ]};
 
+// ===== ALGORITHM OVERVIEW DATA =====
+const OVERVIEW = {
+graham: {
+  name: 'Graham Scan',
+  coreIdea: 'Sort all points by their <em>polar angle</em> from the lowest point (anchor), then sweep counter-clockwise through them. Use a stack to build the hull — if a point causes a <em>right turn</em> (concave dent), backtrack by popping until convexity is restored.',
+  steps: [
+    'Find the <em>anchor</em> — the point with the lowest y-coordinate (leftmost if tied).',
+    'Sort the remaining points by polar angle relative to the anchor.',
+    'Initialize a stack with the anchor and the first sorted point.',
+    'For each subsequent point, check the turn direction using the <em>cross product</em>.',
+    'If the cross product ≤ 0 (right turn / collinear), pop the top of the stack.',
+    'If the cross product > 0 (left turn), push the new point onto the stack.',
+    'Repeat until all points are processed. The stack holds the convex hull.'
+  ],
+  complexity: {
+    time: 'O(n log n)',
+    timeNote: 'dominated by the sorting step',
+    space: 'O(n)',
+    stable: false,
+    paradigm: 'Sort + Stack (Incremental)'
+  },
+  whenToUse: 'Best general-purpose choice when you need a guaranteed <em>O(n log n)</em> runtime regardless of input shape. Ideal when points are not pre-sorted and the number of hull vertices is unknown.'
+},
+jarvis: {
+  name: 'Jarvis March',
+  coreIdea: 'Starting from an extreme point, repeatedly "gift-wrap" the point set by scanning all remaining points to find the one that makes the <em>most counter-clockwise</em> angle. Each scan locks one hull edge, wrapping the boundary one vertex at a time.',
+  steps: [
+    'Find the <em>leftmost</em> point — guaranteed to be on the hull.',
+    'Set it as the current point and begin wrapping.',
+    'For each step, pick an initial candidate for the next hull vertex.',
+    'Scan all other points: if a point is <em>more counter-clockwise</em> (positive cross product), update the candidate.',
+    'After the full scan, the winning candidate becomes the next hull vertex.',
+    'Move to the new vertex and repeat the sweep.',
+    'Stop when the sweep returns to the starting point.'
+  ],
+  complexity: {
+    time: 'O(nh)',
+    timeNote: 'where h = number of hull vertices',
+    space: 'O(h)',
+    stable: false,
+    paradigm: 'Greedy (Gift Wrapping)'
+  },
+  whenToUse: 'Excellent when the hull has <em>very few vertices</em> (h ≪ n), making it faster than O(n log n) alternatives. Degrades to O(n²) when most points lie on the hull (e.g. a circle).'
+}
+};
+
+function renderOverview(algo) {
+  const data = OVERVIEW[algo] || OVERVIEW.graham;
+  $('overviewAlgoName').textContent = data.name;
+  $('overviewContent').innerHTML = `
+    <div class="ov-section">
+      <div class="ov-title">Core Idea</div>
+      <div class="ov-text">${data.coreIdea}</div>
+    </div>
+    <div class="ov-section">
+      <div class="ov-title">How It Works (Step by Step)</div>
+      <ol class="ov-steps">${data.steps.map(s => `<li>${s}</li>`).join('')}</ol>
+    </div>
+    <div class="ov-section">
+      <div class="ov-title">Complexity</div>
+      <div class="ov-complexity">
+        <span>Time: <b>${data.complexity.time}</b> — ${data.complexity.timeNote}</span>
+        <span>Space: <b>${data.complexity.space}</b></span>
+        <span>Paradigm: <b>${data.complexity.paradigm}</b></span>
+      </div>
+    </div>
+    <div class="ov-section">
+      <div class="ov-title">When To Use</div>
+      <div class="ov-text">${data.whenToUse}</div>
+    </div>`;
+}
+
 function renderPseudo(algo){
   const wrap=$('pseudoWrap');wrap.innerHTML='';
   const lines=PSEUDO[algo]||PSEUDO.graham;
@@ -961,6 +1149,12 @@ function getSpeed(){return parseFloat($('speedSlider').value)||1}
 
 // ===== SELECTED ALGO =====
 function getAlgo(){return document.querySelector('input[name=algo]:checked').value}
+document.querySelectorAll('input[name=algo]').forEach(r => r.addEventListener('change', () => {
+  const a = getAlgo();
+  const display = a === 'both' ? 'graham' : a;
+  renderPseudo(display);
+  renderOverview(display);
+}));
 
 // ===== BUILD STEPS =====
 function buildSteps(){
@@ -1024,6 +1218,7 @@ function applyStep(idx){
         banner.className='algo-banner visible jarvis';
         banner.innerHTML='<span class="algo-name">Jarvis March</span><span class="algo-paradigm">Greedy Gift-Wrapping Paradigm</span>';
         renderPseudo('jarvis');
+        renderOverview('jarvis');
       } else if(st.algo==='transition'){
         banner.className='algo-banner visible transition';
         banner.innerHTML='<span class="algo-name">Switching Algorithms...</span><span class="algo-paradigm">Preparing Jarvis March</span>';
@@ -1033,7 +1228,7 @@ function applyStep(idx){
   
   renderPoints(S.points,st.highlights,st.hullSet,st.anchor,st.candidate,st.indices,st.rejectedPoint);
   renderEdges(S.points,st.edges,st.type!=='done',st.ghostEdges);
-  if(st.arcCenter!=null)renderArc(S.points,st.arcCenter,st.arcFrom,st.arcTo,st.arcLabels,st.sweepText,st.radarWedge);
+  if(st.arcCenter!=null)renderArc(S.points,st.arcCenter,st.arcFrom,st.arcTo,st.arcLabels,st.sweepText,st.radarWedge,st.showHorizontalRef,st.angleA,st.angleB);
   else $('arcsG').innerHTML='';
   renderStats(st.stats);
   renderStack(st.stack,S.points);
@@ -1325,7 +1520,7 @@ window.addEventListener('mouseup', () => {
 });
 
 // ===== INIT =====
-calcTransform([]);drawGrid();initEdu();renderPseudo('graham');
+calcTransform([]);drawGrid();initEdu();renderPseudo('graham');renderOverview('graham');
 </script>
 </body>
 </html>
